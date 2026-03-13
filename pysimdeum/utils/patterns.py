@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from pysimdeum.utils.probability import normalize
 
 
 def sample_start_time(prob_joint, day_num, duration, previous_events, offset=0):
