@@ -2,20 +2,20 @@ import numpy as np
 import pandas as pd
 
 
-def sample_start_time(prob_joint, day_num, duration, previous_events, offset=0):
+def sample_start_time(prob_joint: np.ndarray, day_num: int, duration: int, previous_events: list, offset: int=0) -> (int, int):
     """
     Samples a valid start time for an event, ensuring no overlap with previous events
     and no start within duration before the last sampled start time.
 
     Args:
-        prob_joint (numpy.ndarray): The joint probability distribution.
-        day_num (int): The current day number in the simulation.
-        duration (int): The duration of the event.
-        previous_events (list): List of tuples containing start and end times of previous events.
+        prob_joint: The joint probability distribution with one point per second.
+        day_num: The current day number in the simulation.
+        duration: The duration of the event, in seconds.
+        previous_events: List of tuples containing the indices of the start and end of previous events.
+        offset: Time during which the event cannot happen again, in seconds.
 
     Returns:
-        int: The sampled start time.
-        int: The calculated end time.
+        The pair (tuple) of the sampled start time and calculated end time.
     """
     while True:
         start_index = np.random.choice(len(prob_joint), p=prob_joint)
