@@ -3,7 +3,7 @@ import pandas as pd
 from pysimdeum.utils.probability import normalize
 
 
-def sample_start_time(prob_joint, day_num, duration, previous_events):
+def sample_start_time(prob_joint, day_num, duration, previous_events, offset=0):
     """
     Samples a valid start time for an event, ensuring no overlap with previous events
     and no start within duration before the last sampled start time.
@@ -24,7 +24,7 @@ def sample_start_time(prob_joint, day_num, duration, previous_events):
         end = start + duration
 
         # Check for overlapping events or events within duration before the last sample start
-        if not any((start < event_end and start >= event_start) or (start < event_start and start >= event_start - int(duration)) for event_start, event_end in previous_events):
+        if not any((start < event_end + offset and start >= event_start) or (start < event_start and start >= event_start - int(duration) - offset) for event_start, event_end in previous_events):
             return int(start), int(end)
 
 
