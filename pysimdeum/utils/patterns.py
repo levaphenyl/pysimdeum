@@ -24,7 +24,11 @@ def sample_start_time(prob_joint, day_num, duration, previous_events, offset=0):
         end = start + duration
 
         # Check for overlapping events or events within duration before the last sample start
-        if not any((start < event_end + offset and start >= event_start) or (start < event_start and start >= event_start - int(duration) - offset) for event_start, event_end in previous_events):
+        if not any(
+            (event_start <= start < event_end + offset)
+            or (start < event_start <= start + int(duration) + offset)
+            for event_start, event_end in previous_events
+        ):
             return int(start), int(end)
 
 
