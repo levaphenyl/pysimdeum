@@ -99,19 +99,8 @@ class EndUse:
 @dataclass
 class Bathtub(EndUse):
     """Class for Bathtub end-use."""
-    #discharge_events: list = field(default_factory=list)
-
-    def __post_init__(self):
-        """Initialisation function of Bathtub end-use class.
-
-        Args:
-            name: End-use name as string.
-            **kwargs: keyword arguments for super classes.
-        """
-        super().__post_init__()
-        self.name = "Bathtub"
-        self.wastewater_type = "greywater"
-        #self.discharge_events = []
+    name: str = "Bathtub"
+    wastewater_type: str = "greywater"
 
     def fct_frequency(self, age=None):
         """Random function computing the frequency of use for the Bathtub end-use class.
@@ -227,12 +216,9 @@ class Bathtub(EndUse):
 
 @dataclass
 class BathroomTap(EndUse):
-    #discharge_events: list = field(default_factory=list)
-    def __post_init__(self):
-        super().__post_init__()
-        self.name = "BathroomTap"
-        self.wastewater_type = "greywater"
-        #self.discharge_events = []
+    """Base class for bathroom taps."""
+    name: str = "BathroomTap"
+    wastewater_type: str = "greywater"
 
     def fct_frequency(self):
 
@@ -324,13 +310,9 @@ class BathroomTap(EndUse):
 
 @dataclass
 class Dishwasher(EndUse):
-    #discharge_events: list = field(default_factory=list)
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.name = "Dishwasher"
-        self.wastewater_type = "blackwater"
-        #self.discharge_events = []
+    """Base class for dishwashers."""
+    name: str = "Dishwasher"
+    wastewater_type: str = "blackwater"
 
     def fct_frequency(self, numusers=None):
 
@@ -434,13 +416,9 @@ class Dishwasher(EndUse):
 
 @dataclass
 class KitchenTap(EndUse):
-    #discharge_events: list = field(default_factory=list)
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.name = "KitchenTap"
-        self.wastewater_type = "blackwater"
-        #self.discharge_events = []
+    """Base class for kitchen taps."""
+    name: str = "KitchenTap"
+    wastewater_type: str = "blackwater"
 
     def fct_frequency(self, numusers=None):
 
@@ -569,10 +547,8 @@ class KitchenTap(EndUse):
 
 @dataclass
 class OutsideTap(EndUse):
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.name = "OutsideTap"
+    """Base class for outdoor water use."""
+    name: str = "OutsideTap"
 
     def fct_frequency(self):
 
@@ -637,13 +613,9 @@ class OutsideTap(EndUse):
 
 @dataclass
 class Shower(EndUse):
-    #discharge_events: list = field(default_factory=list)
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.name = "Shower"
-        self.wastewater_type = "greywater"
-        #self.discharge_events = []
+    """Base class for all showers."""
+    name: str = "Shower"
+    wastewater_type: str = "greywater"
 
     def fct_frequency(self, age=None):
 
@@ -728,29 +700,23 @@ class Shower(EndUse):
         return consumption, (discharge if simulate_discharge else None)
 
 
+@dataclass
 class NormalShower(Shower):
+    """Most common shower."""
+    name: str = "NormalShower"
 
-    def __post_init__(self):
-        super().__post_init__()
-        self.name = "NormalShower"
-        self.wastewater_type = "greywater"
 
+@dataclass
 class FancyShower(Shower):
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.name = "FancyShower"
-        self.wastewater_type = "greywater"
+    """Combi-heater with water-saving showerhead."""
+    name: str = "FancyShower"
 
 
+@dataclass
 class WashingMachine(EndUse):
-    #discharge_events: list = field(default_factory=list)
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.name = "WashingMachine"
-        self.wastewater_type = "blackwater"
-        #self.discharge_events = []
+    """Base class for washing machines."""
+    name: str = "WashingMachine"
+    wastewater_type: str = "blackwater"
 
     def fct_frequency(self, numusers=None):
 
@@ -857,12 +823,12 @@ class WashingMachine(EndUse):
 
 @dataclass
 class Wc(EndUse):
-    #discharge_events: list = field(default_factory=list)
+    """Base class for all WC flushes."""
+    name: str = "Wc"
+    wastewater_type: str = "blackwater"
 
     def __post_init__(self):
         super().__post_init__()
-        self.name = "Wc"
-        self.wastewater_type = "blackwater"
         self.discharge_events = []
 
     def fct_frequency(self, age=None, gender=None):
@@ -953,35 +919,23 @@ class Wc(EndUse):
 
 @dataclass
 class WcNormal(Wc):
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.name = 'WcNormal'
-        self.wastewater_type = "blackwater"
+    """Most common toilet flush."""
+    name: str = 'WcNormal'
 
 
 @dataclass
 class WcNormalSave(Wc):
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.name = "WcNormalSave"
-        self.wastewater_type = "blackwater"
+    """Most common toilet flush with a water-saving option."""
+    name: str = "WcNormalSave"
 
 
 @dataclass
 class WcNew(Wc):
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.name = "WcNew"
-        self.wastewater_type = "blackwater"
+    """Toilet flush complying with the new efficiency standards."""
+    name: str = "WcNew"
 
 
 @dataclass
 class WcNewSave(Wc):
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.name = "WcNewSave"
-        self.wastewater_type = "blackwater"
+    """Toilet flush complying with the new standard and with a water-saving option."""
+    name: str = "WcNewSave"
