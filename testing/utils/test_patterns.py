@@ -64,6 +64,17 @@ def test_sample_start_time_empty_prob_joint():
     day_num = 0
     duration = 60
     previous_events = []
-
     with pytest.raises(ValueError, match="a must be greater than 0"):
         sample_start_time(prob_joint, day_num, duration, previous_events)
+
+
+def test_sample_start_time_inf_loop(peak_prob_joint):
+    """Test against infinite loops when all conditions are invalid."""
+    with pytest.raises(RuntimeError, match="Could not find a valid start time"):
+        previous_events = [(0, 24 * 60 * 60)]  # One previous event covering the full day.
+        sample_start_time(
+            prob_joint=peak_prob_joint,
+            day_num=0,
+            duration=60,
+            previous_events=previous_events
+        )

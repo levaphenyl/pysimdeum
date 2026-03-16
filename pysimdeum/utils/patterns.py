@@ -17,7 +17,8 @@ def sample_start_time(prob_joint: np.ndarray, day_num: int, duration: int, previ
     Returns:
         The pair (tuple) of the sampled start time and calculated end time.
     """
-    while True:
+    max_attempts = 10000  # Define a maximum number of attempts to prevent infinite loops
+    for __ in range(max_attempts):
         start_index = np.random.choice(len(prob_joint), p=prob_joint)
         start = start_index + int(pd.to_timedelta('1 day').total_seconds()) * day_num
         end = start + duration
@@ -29,6 +30,8 @@ def sample_start_time(prob_joint: np.ndarray, day_num: int, duration: int, previ
             for event_start, event_end in previous_events
         ):
             return int(start), int(end)
+
+    raise RuntimeError(f"sample_start_time: Could not find a valid start time after {max_attempts} attempts.")
 
 
 def handle_spillover_consumption(consumption, pattern, start, end, j, ind_enduse, pattern_num, end_of_day, name, total_days):
