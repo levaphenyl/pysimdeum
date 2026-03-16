@@ -18,6 +18,10 @@ class EndUse:
     hot_water_temp = 60
     discharge_events = []
 
+    def __post_init__(self):
+        """Initialize field values that depend on other fields, among others."""
+        self.offset = int(pd.Timedelta(self.statistics['offset']).total_seconds())
+
     def init_consumption(self, users: list=None, time_resolution: str='1s') -> pd.DataFrame:
         """Initialization of a pandas dataframe to store the  consumptions.
 
@@ -104,6 +108,7 @@ class Bathtub(EndUse):
             name: End-use name as string.
             **kwargs: keyword arguments for super classes.
         """
+        super().__post_init__()
         self.name = "Bathtub"
         self.wastewater_type = "greywater"
         #self.discharge_events = []
@@ -205,7 +210,7 @@ class Bathtub(EndUse):
                 temperature = self.statistics['temperature']
                 prob_joint = normalize(prob_user * prob_usage)
 
-                start, end = sample_start_time(prob_joint, day_num, duration, previous_events)
+                start, end = sample_start_time(prob_joint, day_num, duration, previous_events, self.offset)
                 previous_events.append((start, end))
 
                 consumption[start:end, j, ind_enduse, pattern_num, 0] = intensity
@@ -224,6 +229,7 @@ class Bathtub(EndUse):
 class BathroomTap(EndUse):
     #discharge_events: list = field(default_factory=list)
     def __post_init__(self):
+        super().__post_init__()
         self.name = "BathroomTap"
         self.wastewater_type = "greywater"
         #self.discharge_events = []
@@ -301,7 +307,7 @@ class BathroomTap(EndUse):
 
                 prob_joint = normalize(prob_user * prob_usage)
 
-                start, end = sample_start_time(prob_joint, day_num, duration, previous_events)
+                start, end = sample_start_time(prob_joint, day_num, duration, previous_events, self.offset)
                 previous_events.append((start, end))
 
                 consumption[start:end, j, ind_enduse, pattern_num, 0] = intensity
@@ -321,6 +327,7 @@ class Dishwasher(EndUse):
     #discharge_events: list = field(default_factory=list)
 
     def __post_init__(self):
+        super().__post_init__()
         self.name = "Dishwasher"
         self.wastewater_type = "blackwater"
         #self.discharge_events = []
@@ -400,7 +407,7 @@ class Dishwasher(EndUse):
         previous_events = []
 
         for i in range(freq):
-            start, end = sample_start_time(prob_joint, day_num, duration, previous_events)
+            start, end = sample_start_time(prob_joint, day_num, duration, previous_events, self.offset)
 
             # add event times to list of previous events
             previous_events.append((start, end))
@@ -430,6 +437,7 @@ class KitchenTap(EndUse):
     #discharge_events: list = field(default_factory=list)
 
     def __post_init__(self):
+        super().__post_init__()
         self.name = "KitchenTap"
         self.wastewater_type = "blackwater"
         #self.discharge_events = []
@@ -544,7 +552,7 @@ class KitchenTap(EndUse):
             # assign usage type (based on subtype)
             usage = self.subtype
             prob_joint = normalize(prob_user * prob_usage)  # ToDo: Check if joint probability can be computed outside of for loop for all functions
-            start, end = sample_start_time(prob_joint, day_num, duration, previous_events)
+            start, end = sample_start_time(prob_joint, day_num, duration, previous_events, self.offset)
             previous_events.append((start, end))
 
             consumption[start:end, j, ind_enduse, pattern_num, 0] = intensity
@@ -563,6 +571,7 @@ class KitchenTap(EndUse):
 class OutsideTap(EndUse):
 
     def __post_init__(self):
+        super().__post_init__()
         self.name = "OutsideTap"
 
     def fct_frequency(self):
@@ -616,7 +625,7 @@ class OutsideTap(EndUse):
             duration, intensity, temperature = self.fct_duration_intensity_temperature()
 
             prob_joint = normalize(prob_user * prob_usage)
-            start, end = sample_start_time(prob_joint, day_num, duration, previous_events)
+            start, end = sample_start_time(prob_joint, day_num, duration, previous_events, self.offset)
             previous_events.append((start, end))
 
             consumption[start:end, j, ind_enduse, pattern_num, 0] = intensity
@@ -631,6 +640,7 @@ class Shower(EndUse):
     #discharge_events: list = field(default_factory=list)
 
     def __post_init__(self):
+        super().__post_init__()
         self.name = "Shower"
         self.wastewater_type = "greywater"
         #self.discharge_events = []
@@ -693,7 +703,6 @@ class Shower(EndUse):
     def simulate(self, consumption, discharge=None, users=None, ind_enduse=None, pattern_num=1, day_num=0, total_days=1, simulate_discharge=False, spillover=False):
 
         prob_usage = self.usage_probability().values
-
         previous_events = []
 
         for j, user in enumerate(users):
@@ -704,7 +713,7 @@ class Shower(EndUse):
                 duration, intensity, temperature = self.fct_duration_intensity_temperature(age=user.age)
 
                 prob_joint = normalize(prob_user * prob_usage)
-                start, end = sample_start_time(prob_joint, day_num, duration, previous_events)
+                start, end = sample_start_time(prob_joint, day_num, duration, previous_events, self.offset)
                 previous_events.append((start, end))
 
                 consumption[start:end, j, ind_enduse, pattern_num, 0] = intensity
@@ -722,12 +731,14 @@ class Shower(EndUse):
 class NormalShower(Shower):
 
     def __post_init__(self):
+        super().__post_init__()
         self.name = "NormalShower"
         self.wastewater_type = "greywater"
 
 class FancyShower(Shower):
 
     def __post_init__(self):
+        super().__post_init__()
         self.name = "FancyShower"
         self.wastewater_type = "greywater"
 
@@ -736,6 +747,7 @@ class WashingMachine(EndUse):
     #discharge_events: list = field(default_factory=list)
 
     def __post_init__(self):
+        super().__post_init__()
         self.name = "WashingMachine"
         self.wastewater_type = "blackwater"
         #self.discharge_events = []
@@ -819,7 +831,7 @@ class WashingMachine(EndUse):
         previous_events = []
 
         for i in range(freq):
-            start, end = sample_start_time(prob_joint, day_num, duration, previous_events)
+            start, end = sample_start_time(prob_joint, day_num, duration, previous_events, self.offset)
             # add event times to list of previous events
             previous_events.append((start, end))
 
@@ -848,6 +860,7 @@ class Wc(EndUse):
     #discharge_events: list = field(default_factory=list)
 
     def __post_init__(self):
+        super().__post_init__()
         self.name = "Wc"
         self.wastewater_type = "blackwater"
         self.discharge_events = []
@@ -923,7 +936,7 @@ class Wc(EndUse):
                 usage = "urine" if np.random.random() * 100 < self.statistics['prob_urine'] else "faeces"
                 #print(prob_user)
                 prob_joint = normalize(prob_user * prob_usage)
-                start, end = sample_start_time(prob_joint, day_num, duration, previous_events)
+                start, end = sample_start_time(prob_joint, day_num, duration, previous_events, self.offset)
                 previous_events.append((start, end))
 
                 consumption[start:end, j, ind_enduse, pattern_num, 0] = intensity
@@ -942,6 +955,7 @@ class Wc(EndUse):
 class WcNormal(Wc):
 
     def __post_init__(self):
+        super().__post_init__()
         self.name = 'WcNormal'
         self.wastewater_type = "blackwater"
 
@@ -950,6 +964,7 @@ class WcNormal(Wc):
 class WcNormalSave(Wc):
 
     def __post_init__(self):
+        super().__post_init__()
         self.name = "WcNormalSave"
         self.wastewater_type = "blackwater"
 
@@ -958,6 +973,7 @@ class WcNormalSave(Wc):
 class WcNew(Wc):
 
     def __post_init__(self):
+        super().__post_init__()
         self.name = "WcNew"
         self.wastewater_type = "blackwater"
 
@@ -966,5 +982,6 @@ class WcNew(Wc):
 class WcNewSave(Wc):
 
     def __post_init__(self):
+        super().__post_init__()
         self.name = "WcNewSave"
         self.wastewater_type = "blackwater"
