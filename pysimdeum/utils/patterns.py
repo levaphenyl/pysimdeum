@@ -1,31 +1,37 @@
 import numpy as np
 import pandas as pd
-from pysimdeum.utils.probability import normalize
 
 
-def sample_start_time(prob_joint, day_num, duration, previous_events):
+def sample_start_time(prob_joint: np.ndarray, day_num: int, duration: int, previous_events: list, offset: int=0) -> (int, int):
     """
     Samples a valid start time for an event, ensuring no overlap with previous events
     and no start within duration before the last sampled start time.
 
     Args:
-        prob_joint (numpy.ndarray): The joint probability distribution.
-        day_num (int): The current day number in the simulation.
-        duration (int): The duration of the event.
-        previous_events (list): List of tuples containing start and end times of previous events.
+        prob_joint: The joint probability distribution with one point per second.
+        day_num: The current day number in the simulation.
+        duration: The duration of the event, in seconds.
+        previous_events: List of tuples containing the indices of the start and end of previous events.
+        offset: Time during which the event cannot happen again, in seconds.
 
     Returns:
-        int: The sampled start time.
-        int: The calculated end time.
+        The pair (tuple) of the sampled start time and calculated end time.
     """
-    while True:
+    max_attempts = 10000  # Define a maximum number of attempts to prevent infinite loops
+    for __ in range(max_attempts):
         start_index = np.random.choice(len(prob_joint), p=prob_joint)
         start = start_index + int(pd.to_timedelta('1 day').total_seconds()) * day_num
         end = start + duration
 
         # Check for overlapping events or events within duration before the last sample start
-        if not any((start < event_end and start >= event_start) or (start < event_start and start >= event_start - int(duration)) for event_start, event_end in previous_events):
+        if not any(
+            (event_start <= start < event_end + offset)
+            or (start < event_start <= start + int(duration) + offset)
+            for event_start, event_end in previous_events
+        ):
             return int(start), int(end)
+
+    raise RuntimeError(f"sample_start_time: Could not find a valid start time after {max_attempts} attempts.")
 
 
 def handle_spillover_consumption(consumption, pattern, start, end, j, ind_enduse, pattern_num, end_of_day, name, total_days):

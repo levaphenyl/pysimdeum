@@ -4,7 +4,7 @@ import numpy as np
 from dataclasses import dataclass, field
 from pysimdeum.utils.probability import chooser, duration_decorator, normalize, to_timedelta
 from pysimdeum.utils.patterns import handle_spillover_consumption, handle_discharge_spillover, sample_start_time, offset_simultaneous_discharge
-from pysimdeum.core.statistics import Statistics	
+from pysimdeum.core.statistics import Statistics
 
 
 #TODO: Specific EndUse __post_init__ calls can be replaced by directly using the class name instead of setting the name attributes
@@ -12,12 +12,15 @@ from pysimdeum.core.statistics import Statistics
 @dataclass
 class EndUse:
     """Base class for end-uses."""
-    
     statistics: Statistics = field(repr=False)  # ... statistic object associated with end-use
     name: str = "EndUse"  # ... name of the end-use
     cold_water_temp = 10
     hot_water_temp = 60
     discharge_events = []
+
+    def __post_init__(self):
+        """Initialize field values that depend on other fields, among others."""
+        self.offset = int(pd.Timedelta(self.statistics['offset']).total_seconds())
 
     def init_consumption(self, users: list=None, time_resolution: str='1s') -> pd.DataFrame:
         """Initialization of a pandas dataframe to store the  consumptions.
@@ -77,7 +80,7 @@ class EndUse:
         """Placeholder for specific intensity probability function defined in specific EndUse"""
 
         raise NotImplementedError('Intensity function is not implemented yet!')
-    
+
     def temperature(self):
         """Placeholder for specific temperature function defined in specific EndUse"""
 
@@ -92,21 +95,12 @@ class EndUse:
 
         return duration, intensity, temperature
 
+
 @dataclass
 class Bathtub(EndUse):
     """Class for Bathtub end-use."""
-    #discharge_events: list = field(default_factory=list)
-
-    def __post_init__(self):
-        """Initialisation function of Bathtub end-use class.
-
-        Args:
-            name: End-use name as string.
-            **kwargs: keyword arguments for super classes.
-        """
-        self.name = "Bathtub"
-        self.wastewater_type = "greywater"
-        #self.discharge_events = []
+    name: str = "Bathtub"
+    wastewater_type: str = "greywater"
 
     def fct_frequency(self, age=None):
         """Random function computing the frequency of use for the Bathtub end-use class.
@@ -145,13 +139,13 @@ class Bathtub(EndUse):
         """
         # fixed intensity
         return self.statistics['intensity']
-    
+
     def temperature(self):
         """Obtain the temperature of a bath
 
         Returns:
             temperature of bath water
-        
+
         """
         # independent of subtype
         return self.statistics['temperature']
@@ -189,7 +183,6 @@ class Bathtub(EndUse):
 
         return discharge
 
-
     def simulate(self, consumption, discharge=None, users=None, ind_enduse=None, pattern_num=1, day_num=0, total_days=1, simulate_discharge=False, spillover=False):
 
         prob_usage = self.usage_probability().values
@@ -206,7 +199,7 @@ class Bathtub(EndUse):
                 temperature = self.statistics['temperature']
                 prob_joint = normalize(prob_user * prob_usage)
 
-                start, end = sample_start_time(prob_joint, day_num, duration, previous_events)
+                start, end = sample_start_time(prob_joint, day_num, duration, previous_events, self.offset)
                 previous_events.append((start, end))
 
                 consumption[start:end, j, ind_enduse, pattern_num, 0] = intensity
@@ -223,12 +216,9 @@ class Bathtub(EndUse):
 
 @dataclass
 class BathroomTap(EndUse):
-    #discharge_events: list = field(default_factory=list)
-    
-    def __post_init__(self):
-        self.name = "BathroomTap"
-        self.wastewater_type = "greywater"
-        #self.discharge_events = []
+    """Base class for bathroom taps."""
+    name: str = "BathroomTap"
+    wastewater_type: str = "greywater"
 
     def fct_frequency(self):
 
@@ -255,7 +245,7 @@ class BathroomTap(EndUse):
         intensity = dist(low=low, high=high)
         temperature = self.statistics['subtype'][self.subtype]['temperature']
         return duration, intensity, temperature
-    
+
     def calculate_discharge(self, discharge, start, duration, intensity, temperature_fraction, j, ind_enduse, pattern_num, spillover=False):
         remaining_water = intensity * duration
         start = int(start)
@@ -272,7 +262,6 @@ class BathroomTap(EndUse):
             discharge_flow_rate = intensity
 
         start = offset_simultaneous_discharge(discharge, start, j, ind_enduse, pattern_num, spillover=spillover)
-      
         self.discharge_events.append({
             'enduse': self.name,
             'usage': self.subtype, # subtypes are inherited from chooser(toml)
@@ -290,10 +279,8 @@ class BathroomTap(EndUse):
 
         return discharge
 
-
     def simulate(self, consumption, discharge, users=None, ind_enduse=None, pattern_num=1, day_num=0, total_days=1, simulate_discharge=False, spillover=False):
         prob_usage = self.usage_probability().values
-        
         previous_events = []
 
         for j, user in enumerate(users):
@@ -306,7 +293,7 @@ class BathroomTap(EndUse):
 
                 prob_joint = normalize(prob_user * prob_usage)
 
-                start, end = sample_start_time(prob_joint, day_num, duration, previous_events)
+                start, end = sample_start_time(prob_joint, day_num, duration, previous_events, self.offset)
                 previous_events.append((start, end))
 
                 consumption[start:end, j, ind_enduse, pattern_num, 0] = intensity
@@ -320,14 +307,12 @@ class BathroomTap(EndUse):
 
         return consumption, (discharge if simulate_discharge else None)
 
+
 @dataclass
 class Dishwasher(EndUse):
-    #discharge_events: list = field(default_factory=list)
-
-    def __post_init__(self):
-        self.name = "Dishwasher"
-        self.wastewater_type = "blackwater"
-        #self.discharge_events = []
+    """Base class for dishwashers."""
+    name: str = "Dishwasher"
+    wastewater_type: str = "blackwater"
 
     def fct_frequency(self, numusers=None):
 
@@ -341,10 +326,9 @@ class Dishwasher(EndUse):
     def fct_duration_pattern(self, start=None):
         pattern = self.statistics['enduse_pattern']
         return pattern
-    
+
     def calculate_discharge(self, discharge, start, j, ind_enduse, pattern_num, day_num, end_of_day, total_days, spillover=False):
         discharge_pattern = self.statistics['discharge_pattern']
-        
         cycle_times = []
 
         for time in discharge_pattern[discharge_pattern > 0].index:
@@ -372,7 +356,7 @@ class Dishwasher(EndUse):
             discharge_temperatures = dist(low=low, high=high, size=len(cycle_times)).tolist()
         else:
             raise ValueError("Discharge temperature type not implemented.")
-        
+
         self.discharge_events.append({
             'enduse': self.name,
             'usage': self.name, # no subtypes currently
@@ -405,7 +389,7 @@ class Dishwasher(EndUse):
         previous_events = []
 
         for i in range(freq):
-            start, end = sample_start_time(prob_joint, day_num, duration, previous_events)
+            start, end = sample_start_time(prob_joint, day_num, duration, previous_events, self.offset)
 
             # add event times to list of previous events
             previous_events.append((start, end))
@@ -429,14 +413,12 @@ class Dishwasher(EndUse):
 
         return consumption, (discharge if simulate_discharge else None)
 
+
 @dataclass
 class KitchenTap(EndUse):
-    #discharge_events: list = field(default_factory=list)
-
-    def __post_init__(self):
-        self.name = "KitchenTap"
-        self.wastewater_type = "blackwater"
-        #self.discharge_events = []
+    """Base class for kitchen taps."""
+    name: str = "KitchenTap"
+    wastewater_type: str = "blackwater"
 
     def fct_frequency(self, numusers=None):
 
@@ -481,7 +463,7 @@ class KitchenTap(EndUse):
         temperature = self.statistics['subtype'][self.subtype]['temperature']
 
         return duration, intensity, temperature
-    
+
     def calculate_discharge(self, discharge, start, duration, intensity, temperature_fraction, j, ind_enduse, pattern_num, usage, spillover=False):
         remaining_water = intensity * duration
         start = int(start)
@@ -547,10 +529,8 @@ class KitchenTap(EndUse):
 
             # assign usage type (based on subtype)
             usage = self.subtype
-            
             prob_joint = normalize(prob_user * prob_usage)  # ToDo: Check if joint probability can be computed outside of for loop for all functions
-            
-            start, end = sample_start_time(prob_joint, day_num, duration, previous_events)
+            start, end = sample_start_time(prob_joint, day_num, duration, previous_events, self.offset)
             previous_events.append((start, end))
 
             consumption[start:end, j, ind_enduse, pattern_num, 0] = intensity
@@ -564,11 +544,11 @@ class KitchenTap(EndUse):
 
         return consumption, (discharge if simulate_discharge else None)
 
+
 @dataclass
 class OutsideTap(EndUse):
-
-    def __post_init__(self):
-        self.name = "OutsideTap"
+    """Base class for outdoor water use."""
+    name: str = "OutsideTap"
 
     def fct_frequency(self):
 
@@ -621,8 +601,7 @@ class OutsideTap(EndUse):
             duration, intensity, temperature = self.fct_duration_intensity_temperature()
 
             prob_joint = normalize(prob_user * prob_usage)
-            
-            start, end = sample_start_time(prob_joint, day_num, duration, previous_events)
+            start, end = sample_start_time(prob_joint, day_num, duration, previous_events, self.offset)
             previous_events.append((start, end))
 
             consumption[start:end, j, ind_enduse, pattern_num, 0] = intensity
@@ -631,14 +610,12 @@ class OutsideTap(EndUse):
 
         return consumption, (discharge if simulate_discharge else None)
 
+
 @dataclass
 class Shower(EndUse):
-    #discharge_events: list = field(default_factory=list)
-
-    def __post_init__(self):
-        self.name = "Shower"
-        self.wastewater_type = "greywater"
-        #self.discharge_events = []
+    """Base class for all showers."""
+    name: str = "Shower"
+    wastewater_type: str = "greywater"
 
     def fct_frequency(self, age=None):
 
@@ -663,7 +640,7 @@ class Shower(EndUse):
         temperature = self.statistics['temperature']
 
         return duration, intensity, temperature
-    
+
     def calculate_discharge(self, discharge, start, duration, intensity, temperature_fraction, j, ind_enduse, pattern_num, spillover=False):
         remaining_water = intensity * duration
 
@@ -698,7 +675,6 @@ class Shower(EndUse):
     def simulate(self, consumption, discharge=None, users=None, ind_enduse=None, pattern_num=1, day_num=0, total_days=1, simulate_discharge=False, spillover=False):
 
         prob_usage = self.usage_probability().values
-
         previous_events = []
 
         for j, user in enumerate(users):
@@ -709,7 +685,7 @@ class Shower(EndUse):
                 duration, intensity, temperature = self.fct_duration_intensity_temperature(age=user.age)
 
                 prob_joint = normalize(prob_user * prob_usage)
-                start, end = sample_start_time(prob_joint, day_num, duration, previous_events)
+                start, end = sample_start_time(prob_joint, day_num, duration, previous_events, self.offset)
                 previous_events.append((start, end))
 
                 consumption[start:end, j, ind_enduse, pattern_num, 0] = intensity
@@ -724,26 +700,23 @@ class Shower(EndUse):
         return consumption, (discharge if simulate_discharge else None)
 
 
+@dataclass
 class NormalShower(Shower):
+    """Most common shower."""
+    name: str = "NormalShower"
 
-    def __post_init__(self):
-        self.name = "NormalShower"
-        self.wastewater_type = "greywater"
 
+@dataclass
 class FancyShower(Shower):
+    """Combi-heater with water-saving showerhead."""
+    name: str = "FancyShower"
 
-    def __post_init__(self):
-        self.name = "FancyShower"
-        self.wastewater_type = "greywater"
-    
 
+@dataclass
 class WashingMachine(EndUse):
-    #discharge_events: list = field(default_factory=list)
-
-    def __post_init__(self):
-        self.name = "WashingMachine"
-        self.wastewater_type = "blackwater"
-        #self.discharge_events = []
+    """Base class for washing machines."""
+    name: str = "WashingMachine"
+    wastewater_type: str = "blackwater"
 
     def fct_frequency(self, numusers=None):
 
@@ -758,7 +731,7 @@ class WashingMachine(EndUse):
         pattern = self.statistics['enduse_pattern']
         # duration = pattern.index[-1] - pattern.index[0]
         return pattern
-    
+
     def calculate_discharge(self, discharge, start, j, ind_enduse, pattern_num, day_num, end_of_day, total_days, spillover=False):
         discharge_pattern = self.statistics['discharge_pattern']
 
@@ -789,7 +762,7 @@ class WashingMachine(EndUse):
             discharge_temperatures = dist(low=low, high=high, size=len(cycle_times)).tolist()
         else:
             raise ValueError("Discharge temperature type not implemented.")
-        
+
         self.discharge_events.append({
             'enduse': "WashingMachine",
             'usage': "WashingMachine", # no subtypes currently
@@ -824,8 +797,7 @@ class WashingMachine(EndUse):
         previous_events = []
 
         for i in range(freq):
-            start, end = sample_start_time(prob_joint, day_num, duration, previous_events)
-            
+            start, end = sample_start_time(prob_joint, day_num, duration, previous_events, self.offset)
             # add event times to list of previous events
             previous_events.append((start, end))
 
@@ -848,15 +820,16 @@ class WashingMachine(EndUse):
 
         return consumption, (discharge if simulate_discharge else None)
 
+
 @dataclass
 class Wc(EndUse):
-    #discharge_events: list = field(default_factory=list)
+    """Base class for all WC flushes."""
+    name: str = "Wc"
+    wastewater_type: str = "blackwater"
 
     def __post_init__(self):
-        self.name = "Wc"
-        self.wastewater_type = "blackwater"
+        super().__post_init__()
         self.discharge_events = []
-    
 
     def fct_frequency(self, age=None, gender=None):
         f_stats = self.statistics['frequency']
@@ -887,7 +860,6 @@ class Wc(EndUse):
 
         return duration, intensity, temperature
 
-
     def calculate_discharge(self, discharge, start, duration, intensity, temperature_fraction, j, ind_enduse, pattern_num, usage):
         incoming_water = intensity * duration
         end = int(start)
@@ -912,7 +884,6 @@ class Wc(EndUse):
 
         return discharge
 
-
     def simulate(self, consumption, discharge=None, users=None, ind_enduse=None, pattern_num=1, day_num=0, total_days=1, simulate_discharge=False, spillover=False):
 
         prob_usage = self.usage_probability().values
@@ -931,7 +902,7 @@ class Wc(EndUse):
                 usage = "urine" if np.random.random() * 100 < self.statistics['prob_urine'] else "faeces"
                 #print(prob_user)
                 prob_joint = normalize(prob_user * prob_usage)
-                start, end = sample_start_time(prob_joint, day_num, duration, previous_events)
+                start, end = sample_start_time(prob_joint, day_num, duration, previous_events, self.offset)
                 previous_events.append((start, end))
 
                 consumption[start:end, j, ind_enduse, pattern_num, 0] = intensity
@@ -945,30 +916,26 @@ class Wc(EndUse):
 
         return consumption, (discharge if simulate_discharge else None)
 
+
 @dataclass
 class WcNormal(Wc):
+    """Most common toilet flush."""
+    name: str = 'WcNormal'
 
-    def __post_init__(self):
-        self.name = 'WcNormal'
-        self.wastewater_type = "blackwater"
 
 @dataclass
 class WcNormalSave(Wc):
+    """Most common toilet flush with a water-saving option."""
+    name: str = "WcNormalSave"
 
-    def __post_init__(self):
-        self.name = "WcNormalSave"
-        self.wastewater_type = "blackwater"
 
 @dataclass
 class WcNew(Wc):
+    """Toilet flush complying with the new efficiency standards."""
+    name: str = "WcNew"
 
-    def __post_init__(self):
-        self.name = "WcNew"
-        self.wastewater_type = "blackwater"
 
 @dataclass
 class WcNewSave(Wc):
-
-    def __post_init__(self):
-        self.name = "WcNewSave"
-        self.wastewater_type = "blackwater"
+    """Toilet flush complying with the new standard and with a water-saving option."""
+    name: str = "WcNewSave"
