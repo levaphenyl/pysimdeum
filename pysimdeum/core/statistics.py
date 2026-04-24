@@ -3,7 +3,7 @@ import toml
 from dataclasses import dataclass, field
 from pysimdeum.utils.patterns import complex_daily_pattern, complex_enduse_pattern, complex_discharge_pattern
 from pysimdeum.data import DATA_DIR
-import pickle
+
 
 @dataclass
 class Statistics:
