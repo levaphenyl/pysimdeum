@@ -67,6 +67,11 @@ class Statistics:
         self.end_uses['KitchenTap']['daily_pattern'] = complex_daily_pattern(self.end_uses['KitchenTap'], freq='15Min')
 
     def _convert_to_dict(self, data):
+        """Convert dict subclasses to native Python `dict` for `pickle` to work.
+
+        `toml.load()` returns `DynamicInlineTableDict`, a subclass of `dict`.
+        It looks and behaves the same, until `pickle` tries to serialize it and fails.
+        """
         if isinstance(data, dict):
             return {k: self._convert_to_dict(v) for k, v in data.items()}
         elif isinstance(data, list):

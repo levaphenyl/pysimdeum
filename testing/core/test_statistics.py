@@ -8,6 +8,7 @@ import os
 import pytest
 from unittest.mock import patch
 
+import toml
 from pysimdeum.core.statistics import Statistics
 from pysimdeum.data import DATA_DIR
 
@@ -52,7 +53,7 @@ class TestStatisticsCustomDir:
         stats = Statistics(country=real_dir)
         assert stats.country is None
         assert stats.statisticsdir == real_dir
-        assert len(stats.end_uses) == 8
+        assert len(stats.end_uses) == len(EXPECTED_END_USE_KEYS)
 
 
 class TestStatisticsHousehold:
@@ -110,12 +111,20 @@ class TestStatisticsConvertToDict:
             return Statistics()
 
     def test_plain_dict(self):
-        """Plain dict passes through."""
-        assert self._instance()._convert_to_dict({'a': 1}) == {'a': 1}
+        """Plain dict and TOML dict pass through."""
+        expected = {'a': 1}
+        assert self._instance()._convert_to_dict(expected) == expected
+        toml_dict = toml.decoder.TomlDecoder().get_empty_inline_table()
+        toml_dict['a'] = 1
+        assert self._instance()._convert_to_dict(toml_dict) == expected
 
     def test_nested_dict(self):
-        """Nested dict is recursed."""
-        assert self._instance()._convert_to_dict({'x': {'y': 2}}) == {'x': {'y': 2}}
+        """Nested dict and TOML dict are recursed."""
+        expected = {'x': {'y': 2}}
+        assert self._instance()._convert_to_dict(expected) == expected
+        nested_toml_dict = {'x': toml.decoder.TomlDecoder().get_empty_inline_table()}
+        nested_toml_dict['x']['y'] = 2
+        assert self._instance()._convert_to_dict(nested_toml_dict) == expected
 
     def test_list_of_ints(self):
         """List of ints passes through."""
@@ -137,4 +146,3 @@ class TestStatisticsConvertToDict:
     def test_empty_list(self):
         """Empty list returns empty list."""
         assert self._instance()._convert_to_dict([]) == []
-
