@@ -73,10 +73,3 @@ class Statistics:
             return [self._convert_to_dict(v) for v in data]
         else:
             return data
-    
-def main():
-    print(DATA_DIR)
-    stats = Statistics()
-
-if __name__ == '__main__':
-    main()
