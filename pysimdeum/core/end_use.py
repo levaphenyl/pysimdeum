@@ -4,7 +4,6 @@ import numpy as np
 from dataclasses import dataclass, field
 from pysimdeum.utils.probability import chooser, duration_decorator, normalize, to_timedelta
 from pysimdeum.utils.patterns import handle_spillover_consumption, handle_discharge_spillover, sample_start_time, offset_simultaneous_discharge
-from pysimdeum.core.statistics import Statistics
 
 
 #TODO: Specific EndUse __post_init__ calls can be replaced by directly using the class name instead of setting the name attributes
@@ -12,7 +11,7 @@ from pysimdeum.core.statistics import Statistics
 @dataclass
 class EndUse:
     """Base class for end-uses."""
-    statistics: Statistics = field(repr=False)  # ... statistic object associated with end-use
+    statistics: dict = field(repr=False)  # dict object from core.Statistics.end_uses associated with the end-use
     name: str = "EndUse"  # ... name of the end-use
     cold_water_temp = 10
     hot_water_temp = 60
