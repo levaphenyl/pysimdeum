@@ -433,8 +433,8 @@ class KitchenTap(EndUse):
         # Todo: find out which implementation is right? Mirjam (implemented here) or Wikipedia
 
         # Implementation according to Wikipedia
-        # p = (sigma ** 2 - average) / (sigma ** 2)
-        # r = (average ** 2) / (sigma ** 2 - average)
+        # p = (sigma ** 2 - average) / (sigma ** 2)  Wrong! Wikipedia states: p = average / sigma**2
+        # r = (average ** 2) / (sigma ** 2 - average)  Correct! Equivalent to Mirjam's formula.
 
         # implementation according to Mirjam
         p = average / sigma ** 2
