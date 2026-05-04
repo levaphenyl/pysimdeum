@@ -44,6 +44,7 @@ def test_statistics_country_instanciation(country):
     assert country in stats.statisticsdir
     assert os.path.isdir(stats.statisticsdir)
 
+
 class TestStatisticsCustomDir:
     """Integration test: Statistics accepts a real directory path instead of a country code."""
 
@@ -84,6 +85,8 @@ class TestStatisticsEndUses:
             assert k in nl_stats.end_uses, f'{k!r} missing from end_uses'  # k!r equivalent to repr(k)
             assert isinstance(nl_stats.end_uses[k], dict)
             assert len(nl_stats.end_uses[k]) > 0
+            assert 'frequency' in nl_stats.end_uses[k]
+            assert 'offset' in nl_stats.end_uses[k]
 
 
 class TestStatisticsPatterns:
