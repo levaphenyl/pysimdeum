@@ -21,7 +21,7 @@ class EndUse:
         """Initialize field values that depend on other fields, among others."""
         self.offset = int(pd.Timedelta(self.statistics['offset']).total_seconds())
 
-    def init_consumption(self, users: list=None, time_resolution: str='1s') -> pd.DataFrame:
+    def init_consumption(self, users: list, time_resolution: str='1s') -> pd.DataFrame:
         """Initialization of a pandas dataframe to store the  consumptions.
 
         Args:
@@ -31,11 +31,14 @@ class EndUse:
 
         Returns:
             consumption as pandas `DataFrame` filled with zeros
+
+        Raise:
+            KeyError:   If no users are provided.
         """
 
         if users:
             # produce datetime index
-            index = pd.TimedeltaIndex(start='00:00:00', end='24:00:00', freq=time_resolution, closed='left')
+            index = pd.timedelta_range(start='00:00:00', end='24:00:00', freq=time_resolution, closed='left')
 
             # name columns by users
             columns = ['user_' + str(x+1) for x, user in enumerate(users)]
@@ -43,10 +46,9 @@ class EndUse:
             # initialise consumption dataframe with timedelta index and user columnnames, name it according to end-use
             # device and fill it with zeros.
             consumption = pd.DataFrame(data=0, index=index, columns=columns)
-            consumption.name = self.name
         else:
             # raise an error if no users are defined.
-            raise Exception('No Users are defined!')
+            raise KeyError('No Users are defined!')
 
         return consumption
 

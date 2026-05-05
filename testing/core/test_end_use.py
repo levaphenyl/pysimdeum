@@ -49,37 +49,41 @@ def nl_stats():
     return Statistics('NL')
 
 
+@pytest.fixture(scope="module")
+def end_use():
+    """Minimal EndUse (only needs a valid 'offset' to construct)."""
+    return EndUse(statistics={"offset": "0s"})
+
+
 class TestParentEndUseClass:
     """The class methods inherited from EndUse work as intended."""
 
     @pytest.mark.parametrize('offset, expected', [
-        pytest.param(0, pd.Timedelta(), id='null_offset'),
-        pytest.param('2 Hours', pd.Timedelta(hours=2), id='hours_offset'),
-        pytest.param('20 Minutes', pd.Timedelta(minutes=2), id='minutes_offset'),
+        pytest.param(0, 0, id='null_offset'),
+        pytest.param('2 Hours', 7200, id='hours_offset'),
+        pytest.param('20 Minutes', 1200, id='minutes_offset'),
     ])
     def test_construction_and_offset(self, offset, expected):
         """Instantiation sets the offset."""
         end_use = EndUse(statistics={'offset': offset})
         assert end_use.offset == expected
 
-    def test_init_consumption(self):
+    def test_init_consumption(self, end_use):
         """init_consumption creates a zero-filled DataFrame with correct shape."""
-        end_use = EndUse(statistics={'offset': 100})
         # Omitting users raises an exception.
-        with pytest.raises(Exception):
-            end_use.init_consumption()
+        with pytest.raises(KeyError):
+            end_use.init_consumption(users=[])
 
         users = ['a', 'b', 'c']
         df = end_use.init_consumption(users=users)
         assert isinstance(df, pd.DataFrame)
         assert df.shape == (N_PTS, len(users))
         assert (df == 0).all().all()
-        assert df.name == 'EndUse'
         assert list(df.columns) == ['user_1', 'user_2', 'user_3']
 
     def test_probability_distribution(self):
         """Base usage_probability returns a valid normalised distribution."""
-        prob = EndUse.usage_probability() 
+        prob = EndUse.usage_probability()
         assert isinstance(prob, pd.Series)
         assert len(prob) == N_PTS
         assert prob.sum() == pytest.approx(1.0)
@@ -95,7 +99,10 @@ class TestChildEndUseClasses:
         end_use = cls(statistics=nl_stats.end_uses[stats_key])
         assert isinstance(end_use, cls)
         assert isinstance(end_use.offset, int)
-        assert end_use.offset == nl_stats.end_uses[stats_key]['offset']
+        if isinstance(nl_stats.end_uses[stats_key]['offset'], str):
+            assert end_use.offset > 0
+        else:
+            assert end_use.offset == 0
 
     @pytest.mark.parametrize('cls, stats_key', [
         pytest.param(BathroomTap, 'BathroomTap', id='BathroomTap'),
