@@ -44,24 +44,6 @@ def chooser(data: Union[pd.Series, pd.DataFrame], myproperty: str=''):
     return choose
 
 
-def duration_decorator(func):
-    """Decorator function for duration.
-
-    This decorator transforms duration from timedelta to total seconds, then performs the function on the
-    seconds (e.g. fct_duration for generating durations from a probability distribution), afterwards  it transforms
-    the output back to a pd.Timedelta object."""
-
-    def wrapper(*args, **kwargs):
-
-        args = map(lambda x: (pd.Timedelta(x)).total_seconds(), args)
-        kwargs = {k: pd.Timedelta(v).total_seconds() for k, v in kwargs.items()}
-        result = func(*args, **kwargs)
-        result = to_timedelta(round(result))
-        return result
-
-    return wrapper
-
-
 def normalize(pdf: Union[np.ndarray, pd.Series]) -> Union[np.ndarray, pd.Series]:
     """Normalize probability density function (pdf).
 
