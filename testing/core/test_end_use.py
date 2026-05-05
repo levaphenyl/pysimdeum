@@ -69,7 +69,7 @@ def end_use():
             'distribution': 'Uniform',
             'low': 1,
             'high': 2,
-        }
+        },
     }
     return EndUse(statistics=mock_stats)
 
@@ -146,6 +146,50 @@ class TestParentEndUseClass:
     def test_fct_frequency(self, end_use):
         res = {end_use.fct_frequency() for __ in range(10)}
         assert res == {1, 2}
+
+    @pytest.mark.parametrize("subtype_config, exp_d_range, exp_i_range, exp_t_range, exp_subtypes", [
+        pytest.param(
+            {
+                'subtype': {
+                    'test': {
+                        'penetration': 100,
+                        'temperature': 23,
+                        'duration': {'distribution': 'Lognormal', 'average': '1 Minute'},
+                        'intensity': {'distribution': 'Uniform', 'low': 0.1, 'high': 0.5},
+                    },
+                },
+            },
+            [0, 6000], [0.1, 0.5], [23], ['test'],
+            id="one-subtype"
+        ),
+        pytest.param(
+            {
+                'subtype': {
+                    'subtype1': {
+                        'penetration': 80,
+                        'temperature': 23,
+                        'duration': {'distribution': 'Lognormal', 'average': '1 Minute'},
+                        'intensity': {'distribution': 'Uniform', 'low': 0.1, 'high': 0.5},
+                    },
+                    'subtype2': {
+                        'penetration': 20,
+                        'temperature': 10,
+                        'duration': {'distribution': 'Lognormal', 'average': '2 Minutes'},
+                        'intensity': {'distribution': 'Uniform', 'low': 0.1, 'high': 0.3},
+                    },
+                },
+            },
+            [0, 12000], [0.1, 0.5], [10, 23], ['subtype1', 'subtype2'],
+            id="two-subtypes"
+        ),
+    ])
+    def test_fct_duration_intensity_temperature(self, subtype_config, exp_d_range, exp_i_range, exp_t_range, exp_subtypes):
+        end_use = EndUse(statistics=dict({'offset': '0s'}, **subtype_config))
+        duration, intensity, temperature = end_use.fct_duration_intensity_temperature()
+        assert exp_d_range[0] < duration < exp_d_range[1]
+        assert exp_i_range[0] <= intensity <= exp_i_range[1]
+        assert temperature in exp_t_range
+        assert end_use.subtype in exp_subtypes  # Side-effect
 
 
 class TestChildEndUseClasses:

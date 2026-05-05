@@ -144,13 +144,24 @@ class EndUse:
 
         raise NotImplementedError('temperature function is not implemented yet!')
 
-    def fct_duration_intensity_temperature(self):
-        """Computing duration and intensity for enduse and retrieve temperature for enduse"""
+    def fct_duration_intensity_temperature(self) -> tuple[int, float, float]:
+        """Computes event duration and flow rate intensity and temperature for the end use.
 
-        duration = self.fct_duration()
-        intensity = self.fct_intensity()
-        temperature = self.temperature()
+        Use this function if the duration, intensity, and temperature depend on each other.
+        For instance, they all depend on the subtype (washing hands, etc.).
+        Side effect: add the `subtype` attribute to the end use object.
 
+        Returns:
+            duration:       The total time of the water use, in seconds.
+            intensity:      The flow rate of the water use, in liters per second.
+            temperature:    The water temperature, in degrees Celsius.
+        """
+        self.subtype = chooser(self.statistics['subtype'], 'penetration')
+        d_dist, d_stats = self.get_statistical_params(self.statistics['subtype'][self.subtype]['duration'])
+        duration = round(sample_value(d_dist, **d_stats))
+        i_dist, i_stats = self.get_statistical_params(self.statistics['subtype'][self.subtype]['intensity'])
+        intensity = sample_value(i_dist, **i_stats)
+        temperature = self.statistics['subtype'][self.subtype]['temperature']
         return duration, intensity, temperature
 
 
@@ -268,15 +279,6 @@ class BathroomTap(EndUse):
     """Base class for bathroom taps."""
     name: str = "BathroomTap"
     wastewater_type: str = "greywater"
-
-    def fct_duration_intensity_temperature(self):
-        self.subtype = chooser(self.statistics['subtype'], 'penetration')
-        d_dist, d_stats = self.get_statistical_params(self.statistics['subtype'][self.subtype]['duration'])
-        duration = round(sample_value(d_dist, **d_stats))
-        i_dist, i_stats = self.get_statistical_params(self.statistics['subtype'][self.subtype]['intensity'])
-        intensity = sample_value(i_dist, **i_stats)
-        temperature = self.statistics['subtype'][self.subtype]['temperature']
-        return duration, intensity, temperature
 
     def calculate_discharge(self, discharge, start, duration, intensity, temperature_fraction, j, ind_enduse, pattern_num, spillover=False):
         remaining_water = intensity * duration
@@ -446,15 +448,6 @@ class KitchenTap(EndUse):
         dist_name, dist_params = self.get_statistical_params(self.statistics['frequency'], numusers=numusers)
         return round(sample_value(dist_name, **dist_params))
 
-    def fct_duration_intensity_temperature(self):
-        self.subtype = chooser(self.statistics['subtype'], 'penetration')
-        d_dist, d_stats = self.get_statistical_params(self.statistics['subtype'][self.subtype]['duration'])
-        duration = round(sample_value(d_dist, **d_stats))
-        i_dist, i_stats = self.get_statistical_params(self.statistics['subtype'][self.subtype]['intensity'])
-        intensity = sample_value(i_dist, **i_stats)
-        temperature = self.statistics['subtype'][self.subtype]['temperature']
-        return duration, intensity, temperature
-
     def calculate_discharge(self, discharge, start, duration, intensity, temperature_fraction, j, ind_enduse, pattern_num, usage, spillover=False):
         remaining_water = intensity * duration
         start = int(start)
@@ -535,15 +528,6 @@ class KitchenTap(EndUse):
 class OutsideTap(EndUse):
     """Base class for outdoor water use."""
     name: str = "OutsideTap"
-
-    def fct_duration_intensity_temperature(self):
-        self.subtype = chooser(self.statistics['subtype'], 'penetration')
-        d_dist, d_stats = self.get_statistical_params(self.statistics['subtype'][self.subtype]['duration'])
-        duration = round(sample_value(d_dist, **d_stats))
-        i_dist, i_stats = self.get_statistical_params(self.statistics['subtype'][self.subtype]['intensity'])
-        intensity = sample_value(i_dist, **i_stats)
-        temperature = self.statistics['subtype'][self.subtype]['temperature']
-        return duration, intensity, temperature
 
     def simulate(self, consumption, discharge=None, users=None, ind_enduse=None, pattern_num=1, day_num=0, total_days=1, simulate_discharge=False, spillover=False):
 
