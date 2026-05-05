@@ -2,7 +2,12 @@ import copy
 import pandas as pd
 import numpy as np
 from dataclasses import dataclass, field
-from pysimdeum.utils.probability import chooser, duration_decorator, normalize, to_timedelta
+from pysimdeum.utils.probability import (
+    chooser,
+    normalize,
+    to_timedelta,
+    sample_value,
+)
 from pysimdeum.utils.patterns import handle_spillover_consumption, handle_discharge_spillover, sample_start_time, offset_simultaneous_discharge
 
 
@@ -149,21 +154,17 @@ class Bathtub(EndUse):
     name: str = "Bathtub"
     wastewater_type: str = "greywater"
 
-    def fct_frequency(self, age=None):
+    def fct_frequency(self, age:str|None=None):
         """Random function computing the frequency of use for the Bathtub end-use class.
 
         Args:
-            age: age of the user in years.
+            age: age category of the user of the user (child, teen, etc.).
 
         Returns:
-            distribution function from `numpy.random` to compute frequency of use.
-
+            A sampled value of the frequency of use from the distribution.
         """
-        f_stats = self.statistics['frequency']
-        distribution = getattr(np.random, f_stats['distribution'].lower())
-        average = f_stats['average'][age]
-
-        return distribution(average)
+        dist_name, dist_params = self.get_statistical_params(self.statistics['frequency'], age=age)
+        return round(sample_value(dist_name, **dist_params))
 
     def fct_duration(self):
         """Function to compute the duration of Bathtub end-use.
@@ -199,19 +200,14 @@ class Bathtub(EndUse):
 
     def calculate_discharge(self, discharge, end, duration, intensity, temperature_fraction, j, ind_enduse, pattern_num):
         remaining_water = intensity * duration
-
-        # Sample a usage_delay from a uniform distribution
-        usage_delay_stats = self.statistics['usage_delay']
-        usage_delay = np.random.uniform(usage_delay_stats['low'], usage_delay_stats['high']) * 60
-
+        # Sample a usage_delay from the distribution
+        dist_name, dist_params = self.get_statistical_params(self.statistics['usage_delay'])
+        usage_delay = sample_value(dist_name, **dist_params) * 60.
         start = int(end + usage_delay)
 
         # Sample a value from the discharge_intensity distribution
-        discharge_intensity_stats = self.statistics['discharge_intensity']
-        dist = getattr(np.random, discharge_intensity_stats['distribution'].lower())
-        low = discharge_intensity_stats['low']
-        high = discharge_intensity_stats['high']
-        discharge_flow_rate = dist(low=low, high=high)
+        dist_name, dist_params = self.get_statistical_params(self.statistics['discharge_intensity'])
+        discharge_flow_rate = sample_value(dist_name, **dist_params)
 
         self.discharge_events.append({
             'enduse': self.name,
@@ -267,29 +263,16 @@ class BathroomTap(EndUse):
     name: str = "BathroomTap"
     wastewater_type: str = "greywater"
 
-    def fct_frequency(self):
-
-        f_stats = self.statistics['frequency']
-        distribution = getattr(np.random, f_stats['distribution'].lower())
-        average = f_stats['average']
-        return distribution(average)
+    def fct_frequency(self) -> int:
+        dist_name, dist_params = self.get_statistical_params(self.statistics['frequency'])
+        return round(sample_value(dist_name, **dist_params))
 
     def fct_duration_intensity_temperature(self):
-
         self.subtype = chooser(self.statistics['subtype'], 'penetration')
-
-        d_stats = self.statistics['subtype'][self.subtype]['duration']
-        i_stats = self.statistics['subtype'][self.subtype]['intensity']
-
-        dist = duration_decorator(getattr(np.random, d_stats['distribution'].lower()))
-        mean = to_timedelta(np.log(to_timedelta(d_stats['average']).total_seconds()) - 0.5)
-        duration = dist(mean=mean).total_seconds()
-
-        dist = getattr(np.random, i_stats['distribution'].lower())
-        low = i_stats['low']
-        high = i_stats['high']
-
-        intensity = dist(low=low, high=high)
+        d_dist, d_stats = self.get_statistical_params(self.statistics['subtype'][self.subtype]['duration'])
+        duration = round(sample_value(d_dist, **d_stats))
+        i_dist, i_stats = self.get_statistical_params(self.statistics['subtype'][self.subtype]['intensity'])
+        intensity = sample_value(i_dist, **i_stats)
         temperature = self.statistics['subtype'][self.subtype]['temperature']
         return duration, intensity, temperature
 
@@ -298,11 +281,8 @@ class BathroomTap(EndUse):
         start = int(start)
 
         # Sample a value from the discharge_intensity distribution
-        discharge_intensity_stats = self.statistics['subtype'][self.subtype]['discharge_intensity']
-        dist = getattr(np.random, discharge_intensity_stats['distribution'].lower())
-        low = discharge_intensity_stats['low']
-        high = discharge_intensity_stats['high']
-        discharge_flow_rate = dist(low=low, high=high)
+        dist_name, dist_params = self.get_statistical_params(self.statistics['subtype'][self.subtype]['discharge_intensity'])
+        discharge_flow_rate = sample_value(dist_name, **dist_params)
 
         # limit discharge_flow_rate to the intensity of the tap if there is not enough water to discharge
         if discharge_flow_rate > intensity:
@@ -362,13 +342,8 @@ class Dishwasher(EndUse):
     wastewater_type: str = "blackwater"
 
     def fct_frequency(self, numusers=None):
-
-        f_stats = self.statistics['frequency']
-        distribution = getattr(np.random, f_stats['distribution'].lower())
-
-        df = pd.Series(f_stats['average'])
-        average = df[str(numusers)]  * numusers
-        return distribution(average)
+        dist_name, dist_params = self.get_statistical_params(self.statistics['frequency'], numusers=numusers)  # TODO: change the frequency config because it no longer multiplies by numusers.
+        return round(sample_value(dist_name, **dist_params))
 
     def fct_duration_pattern(self, start=None):
         pattern = self.statistics['enduse_pattern']
@@ -397,10 +372,8 @@ class Dishwasher(EndUse):
         if isinstance(discharge_temperature, (int, float)):
             discharge_temperatures = [discharge_temperature] * len(cycle_times)
         elif isinstance(discharge_temperature, dict):
-            dist = getattr(np.random, discharge_temperature['distribution'].lower())
-            low = discharge_temperature['low']
-            high = discharge_temperature['high']
-            discharge_temperatures = dist(low=low, high=high, size=len(cycle_times)).tolist()
+            dist_name, dist_params = self.get_statistical_params(discharge_temperature)
+            discharge_temperatures = [sample_value(dist_name, **dist_params) for __ in cycle_times]
         else:
             raise ValueError("Discharge temperature type not implemented.")
 
@@ -468,47 +441,16 @@ class KitchenTap(EndUse):
     wastewater_type: str = "blackwater"
 
     def fct_frequency(self, numusers=None):
-
-        f_stats = self.statistics['frequency']
-        distribution = getattr(np.random, f_stats['distribution'].lower())
-
-        df = pd.Series(f_stats['average'])
-        average = df[str(numusers)]
-
-        df = pd.Series(f_stats['sigma'])
-        sigma = df[str(numusers)]
-
-        # Todo: find out which implementation is right? Mirjam (implemented here) or Wikipedia
-
-        # Implementation according to Wikipedia
-        # p = (sigma ** 2 - average) / (sigma ** 2)  Wrong! Wikipedia states: p = average / sigma**2
-        # r = (average ** 2) / (sigma ** 2 - average)  Correct! Equivalent to Mirjam's formula.
-
-        # implementation according to Mirjam
-        p = average / sigma ** 2
-        r = p * average / (1 - p)
-
-        return distribution(r, p)
+        dist_name, dist_params = self.get_statistical_params(self.statistics['frequency'], numusers=numusers)
+        return round(sample_value(dist_name, **dist_params))
 
     def fct_duration_intensity_temperature(self):
-
         self.subtype = chooser(self.statistics['subtype'], 'penetration')
-
-        d_stats = self.statistics['subtype'][self.subtype]['duration']
-        i_stats = self.statistics['subtype'][self.subtype]['intensity']
-
-        dist = getattr(np.random, d_stats['distribution'].lower())
-        mean = np.log(pd.Timedelta(d_stats['average']).total_seconds()) - 0.5
-
-        duration = int(pd.Timedelta(seconds=dist(mean=mean)).total_seconds())
-
-        dist = getattr(np.random, i_stats['distribution'].lower())
-        low = i_stats['low']
-        high = i_stats['high']
-
-        intensity = dist(low=low, high=high)
+        d_dist, d_stats = self.get_statistical_params(self.statistics['subtype'][self.subtype]['duration'])
+        duration = round(sample_value(d_dist, **d_stats))
+        i_dist, i_stats = self.get_statistical_params(self.statistics['subtype'][self.subtype]['intensity'])
+        intensity = sample_value(i_dist, **i_stats)
         temperature = self.statistics['subtype'][self.subtype]['temperature']
-
         return duration, intensity, temperature
 
     def calculate_discharge(self, discharge, start, duration, intensity, temperature_fraction, j, ind_enduse, pattern_num, usage, spillover=False):
@@ -516,13 +458,8 @@ class KitchenTap(EndUse):
         start = int(start)
 
         # Sample a value from the discharge_intensity distribution
-        discharge_intensity_stats = self.statistics['subtype'][self.subtype]['discharge_intensity']
-        dist = getattr(np.random, discharge_intensity_stats['distribution'].lower())
-        low = discharge_intensity_stats['low']
-        high = discharge_intensity_stats['high']
-        discharge_flow_rate = 0
-        while discharge_flow_rate == 0: #ensure the discharge is not zero
-            discharge_flow_rate = dist(low=low, high=high)
+        dist_name, dist_params = self.get_statistical_params(self.statistics['subtype'][self.subtype]['discharge_intensity'])
+        discharge_flow_rate = sample_value(dist_name, **dist_params)  # TODO: change the lower bound to ensure flow rate > 0 instead of the while-loop.
 
         # limit discharge_flow_rate to the intensity of the tap if there is not enough water to discharge
         if discharge_flow_rate > intensity:
@@ -598,31 +535,16 @@ class OutsideTap(EndUse):
     name: str = "OutsideTap"
 
     def fct_frequency(self):
-
-        f_stats = self.statistics['frequency']
-        distribution = getattr(np.random, f_stats['distribution'].lower())
-        average = f_stats['average']
-        return distribution(average)
+        dist_name, dist_params = self.get_statistical_params(self.statistics['frequency'])
+        return round(sample_value(dist_name, **dist_params))
 
     def fct_duration_intensity_temperature(self):
-
-        subtype = chooser(self.statistics['subtype'], 'penetration')
-
-        d_stats = self.statistics['subtype'][subtype]['duration']
-        i_stats = self.statistics['subtype'][subtype]['intensity']
-
-        dist = getattr(np.random, d_stats['distribution'].lower())
-        mean = np.log(pd.Timedelta(d_stats['average']).total_seconds()) - 0.5
-
-        duration = int(pd.Timedelta(seconds=dist(mean=mean)).total_seconds())
-
-        dist = getattr(np.random, i_stats['distribution'].lower())
-        low = i_stats['low']
-        high = i_stats['high']
-
-        intensity = dist(low=low, high=high)
-        temperature = self.statistics['subtype'][subtype]['temperature']
-
+        self.subtype = chooser(self.statistics['subtype'], 'penetration')
+        d_dist, d_stats = self.get_statistical_params(self.statistics['subtype'][self.subtype]['duration'])
+        duration = round(sample_value(d_dist, **d_stats))
+        i_dist, i_stats = self.get_statistical_params(self.statistics['subtype'][self.subtype]['intensity'])
+        intensity = sample_value(i_dist, **i_stats)
+        temperature = self.statistics['subtype'][self.subtype]['temperature']
         return duration, intensity, temperature
 
     def simulate(self, consumption, discharge=None, users=None, ind_enduse=None, pattern_num=1, day_num=0, total_days=1, simulate_discharge=False, spillover=False):
@@ -665,27 +587,14 @@ class Shower(EndUse):
     wastewater_type: str = "greywater"
 
     def fct_frequency(self, age=None):
-
-        f_stats = self.statistics['frequency']
-        distribution = getattr(np.random, f_stats['distribution'].lower())
-        n = f_stats['n']
-        p = f_stats['p'][age]
-
-        return distribution(n, p)
+        dist_name, dist_params = self.get_statistical_params(self.statistics['frequency'], age=age)
+        return round(sample_value(dist_name, **dist_params))
 
     def fct_duration_intensity_temperature(self, age=None):
-
-        d_stats = self.statistics['duration']
-        distribution = getattr(np.random, d_stats['distribution'].lower())
-        df = to_timedelta(d_stats['df'][age])
-
-        df = int(df.total_seconds() / 60)
-        duration = round(distribution(df))
-        duration = int(pd.Timedelta(minutes=duration).total_seconds())
-
+        d_dist, d_stats = self.get_statistical_params(self.statistics['duration'], age=age)
+        duration = round(sample_value(d_dist, **d_stats))
         intensity = self.statistics['subtype'][self.name]['intensity']
         temperature = self.statistics['temperature']
-
         return duration, intensity, temperature
 
     def calculate_discharge(self, discharge, start, duration, intensity, temperature_fraction, j, ind_enduse, pattern_num, spillover=False):
@@ -766,13 +675,8 @@ class WashingMachine(EndUse):
     wastewater_type: str = "blackwater"
 
     def fct_frequency(self, numusers=None):
-
-        f_stats = self.statistics['frequency']
-        distribution = getattr(np.random, f_stats['distribution'].lower())
-
-        df = pd.Series(f_stats['average'])
-        average = df[str(numusers)] * numusers
-        return distribution(average)
+        dist_name, dist_params = self.get_statistical_params(self.statistics['frequency'], numusers=numusers)  # TODO: change the frequency config because it no longer multiplies by numusers.
+        return round(sample_value(dist_name, **dist_params))
 
     def fct_duration_pattern(self, start=None):
         pattern = self.statistics['enduse_pattern']
@@ -803,10 +707,8 @@ class WashingMachine(EndUse):
         if isinstance(discharge_temperature, (int, float)):
             discharge_temperatures = [discharge_temperature] * len(cycle_times)
         elif isinstance(discharge_temperature, dict):
-            dist = getattr(np.random, discharge_temperature['distribution'].lower())
-            low = discharge_temperature['low']
-            high = discharge_temperature['high']
-            discharge_temperatures = dist(low=low, high=high, size=len(cycle_times)).tolist()
+            dist_name, dist_params = self.get_statistical_params(discharge_temperature)
+            discharge_temperatures = [sample_value(dist_name, **dist_params) for __ in cycle_times]
         else:
             raise ValueError("Discharge temperature type not implemented.")
 
@@ -879,12 +781,8 @@ class Wc(EndUse):
         self.discharge_events = []
 
     def fct_frequency(self, age=None, gender=None):
-        f_stats = self.statistics['frequency']
-        distribution = getattr(np.random, f_stats['distribution'].lower())
-
-        average = f_stats['average'][age][gender]
-
-        return distribution(average)
+        dist_name, dist_params = self.get_statistical_params(self.statistics['frequency'], age=age, gender=gender)
+        return round(sample_value(dist_name, **dist_params))
 
     def fct_duration_intensity_temperature(self):
 
@@ -894,8 +792,6 @@ class Wc(EndUse):
         intensity = self.statistics['intensity']
         temperature = self.statistics['temperature']
         average = to_timedelta(self.statistics['subtype'][self.name]['duration'])
-
-        # dist = duration_decorator(getattr(np.random, d_stats['distribution'].lower()))
 
         # add water savings option
         if flush_interuption:
