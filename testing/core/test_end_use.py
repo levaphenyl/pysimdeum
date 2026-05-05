@@ -41,6 +41,17 @@ ALL_END_USES = [
     pytest.param(WcNew,          'Wc',             id='WcNew'),
     pytest.param(WcNewSave,      'Wc',             id='WcNewSave'),
 ]
+AGE_GENDER_CONFIG = {
+    "distribution": "Poisson",
+    "average": {
+        "child": {"male": 1.0, "female": 1.5},
+        "adult": {"male": 2.0, "female": 2.5},
+    },
+}
+NUMUSERS_CONFIG = {
+    "distribution": "Poisson",
+    "average": {"1": 0.5, "2": 1.0, "3": 1.5},
+}
 
 
 @pytest.fixture(scope='module')
@@ -88,6 +99,41 @@ class TestParentEndUseClass:
         assert len(prob) == N_PTS
         assert prob.sum() == pytest.approx(1.0)
         assert (prob >= 0).all()
+
+    @pytest.mark.parametrize("dist_config, call_kwargs, exp_name, exp_params", [
+        pytest.param({"distribution": "Poisson", "lam": 2.5}, {}, "Poisson", {"lam": 2.5}, id="constant-poisson"),  # Constant (no optional args)
+        pytest.param({"distribution": "Uniform", "low": 0, "high": 1}, {}, "Uniform", {"low": 0, "high": 1}, id="constant-uniform"),
+        pytest.param({"distribution": "Poisson", "average": {"child": 1.0, "adult": 2.0}}, {"age": "child"}, "Poisson", {"average": 1.0}, id="age-child"),  # Age resolution
+        pytest.param(AGE_GENDER_CONFIG, {"age": "child", "gender": "male"}, "Poisson", {"average": 1.0}, id="age-gender-child-male"),  # Age + gender resolution
+        pytest.param(NUMUSERS_CONFIG, {"numusers": 1}, "Poisson", {"average": 0.5}, id="numusers-1"),  # Numusers resolution (int -> str lookup)
+        pytest.param(NUMUSERS_CONFIG, {"numusers": 3}, "Poisson", {"average": 1.5}, id="numusers-3"),
+        pytest.param({"distribution": "Negative_binomial", "n": 1, "p": {"child": 0.3, "adult": 0.5}}, {"age": "child"}, "Negative_binomial", {"n": 1, "p": 0.3}, id="mixed-child"),  # Mixed: scalar params pass through, only dict-valued params are resolved
+    ])
+    def test_get_statistical_params_success(self, end_use, dist_config, call_kwargs, exp_name, exp_params):
+        """All resolution modes return (str, dict) with the correct values."""
+        result = end_use.get_statistical_params(dist_config, **call_kwargs)
+        assert isinstance(result, tuple) and len(result) == 2
+        assert isinstance(result[0], str)
+        assert isinstance(result[1], dict)
+        assert result[0] == exp_name
+        assert result[1] == exp_params
+
+    def test_get_statistical_params_no_mutation(self, end_use):
+        """The original dist_config dict must not be modified."""
+        original = {"distribution": "Poisson", "average": {"child": 1.0}}
+        copy = {"distribution": "Poisson", "average": {"child": 1.0}}
+        end_use.get_statistical_params(original, age="child")
+        assert original == copy
+
+    @pytest.mark.parametrize("dist_config, call_kwargs", [
+        pytest.param({}, {}, id="missing-distribution-key"),
+        pytest.param(AGE_GENDER_CONFIG, {"age": "nonexistent"}, id="invalid-age"),
+        pytest.param(NUMUSERS_CONFIG, {"numusers": 99}, id="invalid-numusers"),
+    ])
+    def test_raises_on_invalid_input(self, end_use, dist_config, call_kwargs):
+        """Missing or mismatched keys raise KeyError."""
+        with pytest.raises(KeyError):
+            end_use.get_statistical_params(dist_config, **call_kwargs)
 
 
 class TestChildEndUseClasses:

@@ -67,6 +67,52 @@ class EndUse:
 
         return prob
 
+    def get_statistical_params(self, dist_config: dict, age: str|None=None, gender: str|None=None, numusers: int|None=None) -> tuple[str, dict]:
+        """Split the statistical configuration into a distribution name and distribution parameters.
+
+        Use before calling `utils.probability.sample_value`.
+        This function supports the following use cases:
+            - The parameters of the statistical distribution are constant.
+            - The parameters of the statistical distribution depend on the size of the household.
+            - The parameters of the statistical distribution depend on the age category of the user.
+            - The parameters of the statistical distribution depend on the age category of the user and their gender.
+
+        Args:
+            dist_config:    The configuration of the statistical distribution, as found in `Statistics.end_uses`.
+                            It **must** have a key called `'distribution'`.
+            age:            The age category of the user (child, teen, work_ad, home_ad, senior, total).
+                            Use if the distribution parameters depend on it.
+            gender:         The gender of the user (female, male).
+                            Use if the distribution parameters depend on it.
+            numusers:       The number of users, i.e. the household size.
+                            Use if the distribution parameters depend on it.
+
+        Returns:
+            dist_name:      The name of the distribution.
+            dist_params:    The parameters of the distribution, as a single-level map.
+
+        Raise:
+            KeyError:       If `dist_config` has no `'distribution'` key, or if the given `age`, `gender`, or `numusers` is not found in the nested parameter dict.
+        """
+        dist_config_copy = copy.deepcopy(dist_config)  # Avoid any side-effects of the function.
+        dist_name = dist_config_copy.pop('distribution')
+        if any([age, gender, numusers]):
+            dist_params = {}
+            for param_name, param_value in dist_config_copy.items():
+                if isinstance(param_value, dict):
+                    if age is not None and gender is not None:
+                        dist_params[param_name] = param_value[age][gender]
+                    elif age is not None:
+                        dist_params[param_name] = param_value[age]
+                    elif numusers is not None:
+                        dist_params[param_name] = param_value[str(numusers)]
+                else:
+                    dist_params[param_name] = param_value
+        else:
+            dist_params = dist_config_copy
+
+        return dist_name, dist_params
+
     def fct_frequency(self):
         """Placeholder for specific frequency probability function defined in specific EndUse"""
 
