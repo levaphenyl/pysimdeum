@@ -118,10 +118,16 @@ class EndUse:
 
         return dist_name, dist_params
 
-    def fct_frequency(self):
-        """Placeholder for specific frequency probability function defined in specific EndUse"""
+    def fct_frequency(self) -> int:
+        """Samples a number of events from the frequency probability function defined in the EndUse configuration.
 
-        raise NotImplementedError('Frequency function is not implemented yet!')
+        Simple case where the distribution parameters are constant.
+
+        Returns:
+            An integer value representing the number of events for the given day.
+        """
+        dist_name, dist_params = self.get_statistical_params(self.statistics['frequency'])
+        return round(sample_value(dist_name, **dist_params))
 
     def fct_duration(self):
         """Placeholder for specific duration probability function defined in specific EndUse"""
@@ -262,10 +268,6 @@ class BathroomTap(EndUse):
     """Base class for bathroom taps."""
     name: str = "BathroomTap"
     wastewater_type: str = "greywater"
-
-    def fct_frequency(self) -> int:
-        dist_name, dist_params = self.get_statistical_params(self.statistics['frequency'])
-        return round(sample_value(dist_name, **dist_params))
 
     def fct_duration_intensity_temperature(self):
         self.subtype = chooser(self.statistics['subtype'], 'penetration')
@@ -533,10 +535,6 @@ class KitchenTap(EndUse):
 class OutsideTap(EndUse):
     """Base class for outdoor water use."""
     name: str = "OutsideTap"
-
-    def fct_frequency(self):
-        dist_name, dist_params = self.get_statistical_params(self.statistics['frequency'])
-        return round(sample_value(dist_name, **dist_params))
 
     def fct_duration_intensity_temperature(self):
         self.subtype = chooser(self.statistics['subtype'], 'penetration')

@@ -63,7 +63,15 @@ def nl_stats():
 @pytest.fixture(scope="module")
 def end_use():
     """Minimal EndUse (only needs a valid 'offset' to construct)."""
-    return EndUse(statistics={"offset": "0s"})
+    mock_stats = {
+        'offset': '0s',
+        'frequency': {
+            'distribution': 'Uniform',
+            'low': 1,
+            'high': 2,
+        }
+    }
+    return EndUse(statistics=mock_stats)
 
 
 class TestParentEndUseClass:
@@ -130,10 +138,14 @@ class TestParentEndUseClass:
         pytest.param(AGE_GENDER_CONFIG, {"age": "nonexistent"}, id="invalid-age"),
         pytest.param(NUMUSERS_CONFIG, {"numusers": 99}, id="invalid-numusers"),
     ])
-    def test_raises_on_invalid_input(self, end_use, dist_config, call_kwargs):
+    def test_get_statistical_params_fail(self, end_use, dist_config, call_kwargs):
         """Missing or mismatched keys raise KeyError."""
         with pytest.raises(KeyError):
             end_use.get_statistical_params(dist_config, **call_kwargs)
+
+    def test_fct_frequency(self, end_use):
+        res = {end_use.fct_frequency() for __ in range(10)}
+        assert res == {1, 2}
 
 
 class TestChildEndUseClasses:
