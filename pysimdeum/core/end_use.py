@@ -454,7 +454,7 @@ class KitchenTap(EndUse):
 
         # Sample a value from the discharge_intensity distribution
         dist_name, dist_params = self.get_statistical_params(self.statistics['subtype'][self.subtype]['discharge_intensity'])
-        discharge_flow_rate = sample_value(dist_name, **dist_params)  # TODO: change the lower bound to ensure flow rate > 0 instead of the while-loop.
+        discharge_flow_rate = sample_value(dist_name, **dist_params)
 
         # limit discharge_flow_rate to the intensity of the tap if there is not enough water to discharge
         if discharge_flow_rate > intensity:
@@ -463,24 +463,27 @@ class KitchenTap(EndUse):
         # Check if the tap is turned off before the end of the duration, if so, update the start time
         start = offset_simultaneous_discharge(discharge, start, j, ind_enduse, pattern_num, spillover=spillover)
 
-        self.discharge_events.append({
-            'enduse': self.name,
-            'usage': usage, # subtypes are from chooser(toml)
-            'start': start,
-            'end': int(start + (remaining_water / discharge_flow_rate)),
-            'discharge_temperature': self.statistics['subtype'][self.subtype]['discharge_temperature'],
-        })
+        if discharge_flow_rate > 0.:
+            self.discharge_events.append({
+                'enduse': self.name,
+                'usage': usage, # subtypes are from chooser(toml)
+                'start': start,
+                'end': int(start + (remaining_water / discharge_flow_rate)),
+                'discharge_temperature': self.statistics['subtype'][self.subtype]['discharge_temperature'],
+            })
 
-        while remaining_water > 0:
-            discharge_duration = remaining_water / discharge_flow_rate
-            end = int(start + discharge_duration)
-            # check if subtype = consumption (drinking), if so the discharge flow rate is set to 0
-            if self.subtype == 'consumption':
-                discharge[start:end, j, ind_enduse, pattern_num, 1] = 0
-            else:
-                discharge[start:end, j, ind_enduse, pattern_num, 1] = discharge_flow_rate         
-            remaining_water -= discharge_flow_rate * discharge_duration
-            start = end
+            while remaining_water > 0:
+                discharge_duration = remaining_water / discharge_flow_rate
+                end = int(start + discharge_duration)
+                # check if subtype = consumption (drinking), if so the discharge flow rate is set to 0
+                if self.subtype == 'consumption':
+                    discharge[start:end, j, ind_enduse, pattern_num, 1] = 0
+                else:
+                    discharge[start:end, j, ind_enduse, pattern_num, 1] = discharge_flow_rate
+                remaining_water -= discharge_flow_rate * discharge_duration
+                start = end
+
+        # else: the event is consumption and there is no discharge.
 
         return discharge
 
