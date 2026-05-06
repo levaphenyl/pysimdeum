@@ -34,9 +34,9 @@ temperature = 10
 [frequency]
     distribution = 'Poisson'
     [frequency.average]
-        1 = 0.2143  # [1/day]
-        2 = 0.2286
-        3 = 0.1857
-        4 = 0.2000
-        5 = 0.1429
+        1 = 0.2143  # cycles per day per household
+        2 = 0.4572  # 0.2286 cycles per day per person
+        3 = 0.5571
+        4 = 0.8000
+        5 = 0.7145
 

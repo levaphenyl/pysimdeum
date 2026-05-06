@@ -346,7 +346,7 @@ class Dishwasher(EndUse):
     wastewater_type: str = "blackwater"
 
     def fct_frequency(self, numusers=None):
-        dist_name, dist_params = self.get_statistical_params(self.statistics['frequency'], numusers=numusers)  # TODO: change the frequency config because it no longer multiplies by numusers.
+        dist_name, dist_params = self.get_statistical_params(self.statistics['frequency'], numusers=numusers)
         return round(sample_value(dist_name, **dist_params))
 
     def fct_duration_pattern(self, start=None):
@@ -657,7 +657,7 @@ class WashingMachine(EndUse):
     wastewater_type: str = "blackwater"
 
     def fct_frequency(self, numusers=None):
-        dist_name, dist_params = self.get_statistical_params(self.statistics['frequency'], numusers=numusers)  # TODO: change the frequency config because it no longer multiplies by numusers.
+        dist_name, dist_params = self.get_statistical_params(self.statistics['frequency'], numusers=numusers)
         return round(sample_value(dist_name, **dist_params))
 
     def fct_duration_pattern(self, start=None):

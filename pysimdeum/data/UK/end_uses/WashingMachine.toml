@@ -36,10 +36,10 @@ temperature = 40
 [frequency]
     distribution = 'Poisson'
     [frequency.average]
-        1 = 0.36  # [1/day]
-        2 = 0.29
-        3 = 0.29
-        4 = 0.26
-        5 = 0.21
+        1 = 0.36  # cycles per day per household
+        2 = 0.58  # 0.29 cycles per day per person
+        3 = 0.87
+        4 = 1.04
+        5 = 1.05
 
 # through subtypes different washing machine patterns (washing programs) could be constructed in the future
