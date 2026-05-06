@@ -145,6 +145,69 @@ subcatchment_id = "subcatchme"
 ...
 ```
 
+## End uses
+
+End uses of water correspond to the fixture or appliance withdrawing and discharging the water.
+Each end use is linked to a `class` in the simulator and a TOML file configuring its statistics.
+End uses may have subtypes describing particular water jobs.
+For instance, washing the dishes at the kitchen sink uses water at a different temperature and for a different duration than other kitchen sink jobs.
+
+The configuration of an end use includes both constants and statistical variables.
+Sub-bullets including the `distribution` keyword declare the latter.
+You can change the distribution as long as you provide the right parameters.
+pySimdeum uses `numpy` under the hood and supports all distributions listed [here](https://numpy.org/doc/stable/reference/random/generator.html#distributions).
+If you change the distribution name, you **must** change the parameter name(s) to match `numpy`'s keyword arguments (see example below).
+Additionally, pySimdeum currently supports the following configurations (see table).
+
+Distribution        | Accepted parameter    | Comment
+--------------------|-----------------------|------------------
+Poisson             | `average`             | Used as lambda.
+Negative Binomial   | `average`, `sigma`    | Converted to r and p.
+Lognormal           | `average`             | Converted to `mean = log(average) - 0.5` and `sigma = 1.`
+
+### Example
+
+For instance, changing the distribution of the shower frequency from binomial to uniform is possible.
+
+#### Old configuration
+
+```toml
+[frequency]
+    distribution = 'Binomial'
+    n = 1
+    [frequency.p]
+        child = 0.48
+        teen = 0.67
+        work_ad = 0.79
+        ...
+```
+
+#### New configuration
+
+The binomial distribution requires the parameters `n` (number of trials) and `p` (probability of success).
+However, the uniform distribution requires the lower and upper bounds of the range.
+Therefore, the configuration below changes the `distribution` parameter and the parameter names.
+
+```toml
+[frequency]
+    distribution = 'Uniform'
+    high = 2  # Use the same syntax as low to make it age-dependent, too.
+    [frequency.low]
+        child = 0
+        teen = 1
+        work_ad = 1
+        ...
+```
+
+### ⚠️ Limitations
+
+While pySimdeum supports different distributions, it does currently not support changes to the structure of the configuration.
+The following changes won't work:
+- Changing a constant to be a statistical variable and vice-versa.
+- Changing the variable upon which distribution parameters depend.
+  For instance, if a distribution depends on the age of the householder, you cannot change it to depend on their gender.
+- Making distribution parameters more complex, like making them dependant on the age if it is not already the case.
+
 ## Bathroom Tap
 
 This file defines the statistics and parameters for the `BathroomTap` end-use in the simulation. The structure of the file is as follows:
@@ -165,7 +228,7 @@ This file defines the statistics and parameters for the `BathroomTap` end-use in
             - `average` (string): Average duration of use. Example: `'40 Seconds'`.
         - `subtype.appliance_use.intensity`: Water usage intensity patterns.
             - `distribution` (string): Distribution type. Example: `'Uniform'`.
-            - `low` (float): Lower bound of intensity.
+            - `low` (float): Lower bound of intensity [L/s].
             - `high` (float): Upper bound of intensity.
         - `subtype.appliance_use.discharge_intensity`: Discharging water intensity patterns.
             - `distribution` (string): Distribution type. Example: `'Uniform'`.

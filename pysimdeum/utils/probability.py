@@ -177,7 +177,7 @@ def sample_value(dist_name: str, **kwargs) -> Union[float, int]:
                     --------------------|-----------------------|------------------
                     Poisson             | `average`             | Used as lambda.
                     Negative Binomial   | `average`, `sigma`    | Converted to r and p.
-                    Lognormal           | average               | Converted to mean = log(average) - 0.5.
+                    Lognormal           | `average`             | Converted to mean = log(average) - 0.5.
 
     Returns:
         A scalar, sampled at random from the specified distribution.
