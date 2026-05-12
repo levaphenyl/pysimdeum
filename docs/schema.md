@@ -206,7 +206,7 @@ The following changes won't work:
 - Changing a constant to be a statistical variable and vice-versa.
 - Changing the variable upon which distribution parameters depend.
   For instance, if a distribution depends on the age of the householder, you cannot change it to depend on their gender.
-- Making distribution parameters more complex, like making them dependant on the age if it is not already the case.
+- Making distribution parameters more complex, like making them dependent on the age if it is not already the case.
 
 ## Bathroom Tap
 
@@ -218,7 +218,7 @@ This file defines the statistics and parameters for the `BathroomTap` end-use in
 - `offset` (integer): Defines the time where a second use of the end-use is blocked.
 - `frequency`: the frequency distribution of the end-use
     - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'Poisson'`.
-    - `average` (float): Average frequency of end-use.
+    - `average` (float): Average number of events per person per day.
 - `subtype`: types of bathroom tap end-use. Each subtype has its own parameters
     - `subtype.appliance_use`
         - `penetration` (float): Probability of subtype use [%].
@@ -283,7 +283,7 @@ This file defines the statistics and parameters for the `Bathtub` end-use in the
     - `5` (integer): Penetration rate for houses with 5 people.
 - `frequency`: distribution of the end-use. Bathtub use is age-dependent, therefore the input parameter of the Poisson distribution changes with age.
     - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'Poisson'`.
-    - `frequency.average`
+    - `frequency.average`: Average number of baths per person per day.
         - `child` (float): Average frequency for children.
         - `teen` (float): Average frequency for teenagers.
         - `work_ad` (float): Average frequency for working adults
@@ -323,7 +323,7 @@ This file defines the statistics and parameters for the `Dishwasher` end-use in 
     - `5` (integer): Penetration rate for houses with 5 people.
 - `frequency`: frequency distribution of the end-use.
     - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'Poisson'`.
-    - `frequency.average`
+    - `frequency.average`: Average number of dishwasher cycles per day per household.
         - `1` (float): Average frequency for houses with 1 person.
         - `2` (float): Average frequency for houses with 2 people.
         - `3` (float): Average frequency for houses with 3 people.
@@ -339,7 +339,7 @@ This file defines the statistics and parameters for the `KitchenTap` end-use in 
 - `offset` (integer): Defines the time where a second use of the end-use is blocked.
 - `frequency`: frequency distribution of the end-use.
     - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'Negative_binomial'`.
-    - `frequency.average`:
+    - `frequency.average`: Average number of events per day per household.
         - `1` (float): Average frequency for houses with 1 person.
         - `2` (float): Average frequency for houses with 2 people.
         - `3` (float): Average frequency for houses with 3 people.
@@ -406,7 +406,7 @@ This file defines the statistics and parameters for the `OutsideTap` end-use in 
 - `offset` (integer): Defines the time where a second use of the end-use is blocked.
 - `frequency`: frequency distribution of the end-use.
     - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'Negative_binomial'`.
-    - `average` (float): Average frequency of end-use.
+    - `average` (float): Average frequency of end-use, i.e. average number of outdoor events per day per household.
 - `subtype`: types of kitchen tap end-use. Each subtype has its own parameters
     - `subtype.appliance_use`
         - `penetration` (float): Probability of subtype use [%].
@@ -459,8 +459,8 @@ This file defines the statistics and parameters for the `Shower ` end-use in the
 - `offset` (integer): Defines the time where a second use of the end-use is blocked.
 - `temperature` (integer): Temperature of used water [°C].
 - `frequency`: frequency distribution of the end-use. Age dependent.
-    - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'binomial'`.
-    - `n` (float): number of showers per day
+    - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'Binomial'`.
+    - `n` (float): Number of showers per day per person.
     - `frequency.p`
         - `age_group` (float): There should be a different entry for each age grouping. Value is the probability of the age taking a shower on a given day.
 - `duration`: Age dependent. Duration of a shower for each of the age groups.
@@ -517,7 +517,7 @@ This file defines the statistics and parameters for the `WashingMachine` end-use
     - `5` (integer): Penetration rate for houses with 5 people.
 - `frequency`: Frequency distribution of the end-use.
     - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'Poisson'`.
-    - `frequency.average`: Average frequency of end-use.
+    - `frequency.average`: Average number of laundry cycles per day per household.
         - `1` (float): Average frequency for houses with 1 person.
         - `2` (float): Average frequency for houses with 2 people.
         - `3` (float): Average frequency for houses with 3 people.
@@ -540,7 +540,7 @@ This file defines the statistics and parameters for the `Wc` (toilet) end-use in
 - `discharge_intensity` (float): Discharge intensity [L/s].
 - `frequency`: Contains the frequency distribution data.
     - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'Poisson'`.
-    - `frequency.average`: Average frequency of use, dependent on age and gender.
+    - `frequency.average`: Average number of flushes per person per day, dependent on age and gender.
         - `child`: Average frequency for children.
             - `male` (float): Average frequency for male children [day^(-1)].
             - `female` (float): Average frequency for female children [day^(-1)].
