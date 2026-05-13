@@ -3,10 +3,6 @@ import pandas as pd
 import numpy as np
 
 
-# ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
-
 def _subcatchment_profiles_to_dataframe(subcatchment_profiles):
     """
     Converts subcatchment_profiles (dict of xarray DataArrays) to a pandas DataFrame.
@@ -45,10 +41,6 @@ _LS_TO_Q = {
     'multipliers': None,  # handled separately
 }
 
-
-# ---------------------------------------------------------------------------
-# InfoWorks ICM — wastewater generator CSV
-# ---------------------------------------------------------------------------
 
 def generate_icm_csv(subcatchment_profiles, output_dir):
     """
@@ -149,10 +141,6 @@ def generate_icm_csv(subcatchment_profiles, output_dir):
             f.write("\n".join(csv_content))
 
 
-# ---------------------------------------------------------------------------
-# InfoWorks WS — demand diagram DDG
-# ---------------------------------------------------------------------------
-
 def generate_ws_ddg(subcatchment_profiles, output_dir, Q_option='l_s', patternfile_option=1):
     """
     Writes InfoWorks WS demand diagram (.ddg) files from aggregated zone consumption profiles.
@@ -219,7 +207,7 @@ def generate_ws_ddg(subcatchment_profiles, output_dir, Q_option='l_s', patternfi
         # np.resize wraps cyclically — fills any remaining days from the start of vals
         zone_values[zone_id] = np.resize(vals, total_steps_needed)
 
-    # --- DDG line builders (mirror MATLAB h1/h2/h3 structure) ---
+    # DDG line builders
 
     _MAX_NAME = 9
 
