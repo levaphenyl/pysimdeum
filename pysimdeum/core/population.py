@@ -5,7 +5,7 @@ import os
 from shapely.ops import unary_union
 from pysimdeum.data import DATA_DIR
 from pysimdeum.utils.probability import optimise_probabilities
-from pysimdeum.utils.misc import fix_invalid_geometries
+from pysimdeum.utils.misc import fix_invalid_geometries, consumption_time_agg
 import pysimdeum.utils.wastewater_quality as wq
 from pysimdeum.api import build_multi_hh
 import toml
@@ -367,12 +367,16 @@ class Population:
         return self.subcatchment_houses
     
 
-    def calculate_subcatchment_profiles(self):
+    def calculate_subcatchment_profiles(self, time_agg='15min'):
         """
-        Calculates the profiles of subcatchments based on household types.
+        Calculates aggregated consumption profiles per subcatchment.
 
-        This method generates a dictionary where the keys are subcatchment IDs and the values
-        are dictionaries containing counts of each household type within that subcatchment.
+        House profiles are summed across all houses in each subcatchment and then
+        resampled to the requested time resolution using ``consumption_time_agg``
+
+        Args:
+            time_agg (str): Target time resolution. One of ``'s'``, ``'m'``,
+                ``'15min'``, ``'30min'``, ``'h'`` (default).
         """
         self.subcatchment_houses = self._house_subcatchment_mapping()
 
@@ -405,9 +409,8 @@ class Population:
                 else:
                     total_profile += house_profile
 
-            # Store the aggregated profile for the subcatchment
             if total_profile is not None:
-                subcatchment_profiles[subcatchment_id] = total_profile
+                subcatchment_profiles[subcatchment_id] = consumption_time_agg(total_profile, time_agg)
 
         return subcatchment_profiles
 
