@@ -1,8 +1,15 @@
+import inspect
 import pandas as pd
 import numpy as np
 from typing import Union
 from scipy.stats import truncnorm
 from scipy.optimize import minimize
+
+# Use a better generator than legacy.
+# Instanciate once for the module.
+# Requires numpy >= 1.17.
+RNG = np.random.default_rng()
+
 
 def chooser(data: Union[pd.Series, pd.DataFrame], myproperty: str=''):
     """Function to choose elements from a pd.Series randomly, which consists of keys representing the elements and probabilities as values [-> Statistics object].
@@ -35,24 +42,6 @@ def chooser(data: Union[pd.Series, pd.DataFrame], myproperty: str=''):
     choose = data[u < data.cumsum()].index[0]
 
     return choose
-
-
-def duration_decorator(func):
-    """Decorator function for duration.
-
-    This decorator transforms duration from timedelta to total seconds, then performs the function on the
-    seconds (e.g. fct_duration for generating durations from a probability distribution), afterwards  it transforms
-    the output back to a pd.Timedelta object."""
-
-    def wrapper(*args, **kwargs):
-
-        args = map(lambda x: (pd.Timedelta(x)).total_seconds(), args)
-        kwargs = {k: pd.Timedelta(v).total_seconds() for k, v in kwargs.items()}
-        result = func(*args, **kwargs)
-        result = to_timedelta(round(result))
-        return result
-
-    return wrapper
 
 
 def normalize(pdf: Union[np.ndarray, pd.Series]) -> Union[np.ndarray, pd.Series]:
@@ -172,3 +161,70 @@ def optimise_probabilities(starting_probs, total_population, total_households, h
         raise ValueError(f"Optimisation failed: {result.message}")
 
     return result.x
+
+
+def sample_value(dist_name: str, **kwargs) -> Union[float, int]:
+    """Generate a single value from the named distribution using the provided parameters.
+
+    Args:
+        dist_name:  The name of the distribution. It must be supported by numpy.random.Generator.
+                    Please see: https://numpy.org/doc/stable/reference/random/generator.html#distributions
+        **kwargs:   Parameters of the distribution. Names should either correspond to the parameter
+                    names of the distributions in numpy.random.Generator, or fit in the following list
+                    of supported exceptions:
+
+                    Distribution        | Accepted parameter    | Comment
+                    --------------------|-----------------------|------------------
+                    Poisson             | `average`             | Used as lambda.
+                    Negative Binomial   | `average`, `sigma`    | Converted to r and p.
+                    Lognormal           | `average`             | Converted to mean = log(average) - 0.5.
+
+    Returns:
+        A scalar, sampled at random from the specified distribution.
+        All time deltas are expressed in seconds.
+
+    Raises:
+        ValueError: if the distribution is not supported or the parameters don't match.
+    """
+    dist_name = dist_name.lower()
+    # Convert all arguments to float, incl. durations to number of seconds.
+    float_kwargs = {}
+    for k, v in kwargs.items():
+        if isinstance(v, str):
+            try:
+                float_kwargs[k] = float(v)
+            except ValueError:
+                float_kwargs[k] = pd.Timedelta(v).total_seconds()
+        else:
+            float_kwargs[k] = float(v)
+
+    # Start with exceptions.
+    if dist_name == 'poisson' and 'average' in float_kwargs:
+        return RNG.poisson(float_kwargs['average'])
+
+    if dist_name == 'negative_binomial' and 'average' in float_kwargs and 'sigma' in kwargs:
+        # p-formula, consistent with both Mirjam's orginal implementation and Wikipedia.
+        p = float_kwargs['average'] / kwargs['sigma'] ** 2
+        # r-formula, using Mirjam's implementation but equivalent to: r = (average ** 2) / (sigma ** 2 - average)
+        r = p * float_kwargs['average'] / (1 - p)
+        return RNG.negative_binomial(r, p)
+
+    if dist_name == 'lognormal' and 'average' in float_kwargs:
+        return RNG.lognormal(mean=np.log(float_kwargs['average']) - 0.5, sigma=1.)
+
+    try:
+        dist_function = getattr(RNG, dist_name)
+    except AttributeError:
+        raise ValueError(f'Unsupported distribution: {dist_name}')
+
+    func_params = [
+        param.name
+        for param in inspect.signature(dist_function).parameters.values()
+    ]
+    if all(x in func_params for x in float_kwargs):
+        return dist_function(**float_kwargs)
+    else:
+        raise ValueError(
+            f"{dist_name} distribution expects parameters {', '.join(func_params)}"
+            f"but received {', '.join(float_kwargs)}."
+        )

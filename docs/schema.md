@@ -145,6 +145,69 @@ subcatchment_id = "subcatchme"
 ...
 ```
 
+## End uses
+
+End uses of water correspond to the fixture or appliance withdrawing and discharging the water.
+Each end use is linked to a `class` in the simulator and a TOML file configuring its statistics.
+End uses may have subtypes describing particular water jobs.
+For instance, washing the dishes at the kitchen sink uses water at a different temperature and for a different duration than other kitchen sink jobs.
+
+The configuration of an end use includes both constants and statistical variables.
+Sub-bullets including the `distribution` keyword declare the latter.
+You can change the distribution as long as you provide the right parameters.
+pySimdeum uses `numpy` under the hood and supports all distributions listed [here](https://numpy.org/doc/stable/reference/random/generator.html#distributions).
+If you change the distribution name, you **must** change the parameter name(s) to match `numpy`'s keyword arguments (see example below).
+Additionally, pySimdeum currently supports the following configurations (see table).
+
+Distribution        | Accepted parameter    | Comment
+--------------------|-----------------------|------------------
+Poisson             | `average`             | Used as lambda.
+Negative Binomial   | `average`, `sigma`    | Converted to r and p.
+Lognormal           | `average`             | Converted to `mean = log(average) - 0.5` and `sigma = 1.`
+
+### Example
+
+For instance, changing the distribution of the shower frequency from binomial to uniform is possible.
+
+#### Old configuration
+
+```toml
+[frequency]
+    distribution = 'Binomial'
+    n = 1
+    [frequency.p]
+        child = 0.48
+        teen = 0.67
+        work_ad = 0.79
+        ...
+```
+
+#### New configuration
+
+The binomial distribution requires the parameters `n` (number of trials) and `p` (probability of success).
+However, the uniform distribution requires the lower and upper bounds of the range.
+Therefore, the configuration below changes the `distribution` parameter and the parameter names.
+
+```toml
+[frequency]
+    distribution = 'Uniform'
+    high = 2  # Use the same syntax as low to make it age-dependent, too.
+    [frequency.low]
+        child = 0
+        teen = 1
+        work_ad = 1
+        ...
+```
+
+### ⚠️ Limitations
+
+While pySimdeum supports different distributions, it does currently not support changes to the structure of the configuration.
+The following changes won't work:
+- Changing a constant to be a statistical variable and vice-versa.
+- Changing the variable upon which distribution parameters depend.
+  For instance, if a distribution depends on the age of the householder, you cannot change it to depend on their gender.
+- Making distribution parameters more complex, like making them dependent on the age if it is not already the case.
+
 ## Bathroom Tap
 
 This file defines the statistics and parameters for the `BathroomTap` end-use in the simulation. The structure of the file is as follows:
@@ -155,7 +218,7 @@ This file defines the statistics and parameters for the `BathroomTap` end-use in
 - `offset` (integer): Defines the time where a second use of the end-use is blocked.
 - `frequency`: the frequency distribution of the end-use
     - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'Poisson'`.
-    - `average` (float): Average frequency of end-use.
+    - `average` (float): Average number of events per person per day.
 - `subtype`: types of bathroom tap end-use. Each subtype has its own parameters
     - `subtype.appliance_use`
         - `penetration` (float): Probability of subtype use [%].
@@ -165,7 +228,7 @@ This file defines the statistics and parameters for the `BathroomTap` end-use in
             - `average` (string): Average duration of use. Example: `'40 Seconds'`.
         - `subtype.appliance_use.intensity`: Water usage intensity patterns.
             - `distribution` (string): Distribution type. Example: `'Uniform'`.
-            - `low` (float): Lower bound of intensity.
+            - `low` (float): Lower bound of intensity [L/s].
             - `high` (float): Upper bound of intensity.
         - `subtype.appliance_use.discharge_intensity`: Discharging water intensity patterns.
             - `distribution` (string): Distribution type. Example: `'Uniform'`.
@@ -220,7 +283,7 @@ This file defines the statistics and parameters for the `Bathtub` end-use in the
     - `5` (integer): Penetration rate for houses with 5 people.
 - `frequency`: distribution of the end-use. Bathtub use is age-dependent, therefore the input parameter of the Poisson distribution changes with age.
     - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'Poisson'`.
-    - `frequency.average`
+    - `frequency.average`: Average number of baths per person per day.
         - `child` (float): Average frequency for children.
         - `teen` (float): Average frequency for teenagers.
         - `work_ad` (float): Average frequency for working adults
@@ -260,7 +323,7 @@ This file defines the statistics and parameters for the `Dishwasher` end-use in 
     - `5` (integer): Penetration rate for houses with 5 people.
 - `frequency`: frequency distribution of the end-use.
     - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'Poisson'`.
-    - `frequency.average`
+    - `frequency.average`: Average number of dishwasher cycles per day per household.
         - `1` (float): Average frequency for houses with 1 person.
         - `2` (float): Average frequency for houses with 2 people.
         - `3` (float): Average frequency for houses with 3 people.
@@ -276,7 +339,7 @@ This file defines the statistics and parameters for the `KitchenTap` end-use in 
 - `offset` (integer): Defines the time where a second use of the end-use is blocked.
 - `frequency`: frequency distribution of the end-use.
     - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'Negative_binomial'`.
-    - `frequency.average`:
+    - `frequency.average`: Average number of events per day per household.
         - `1` (float): Average frequency for houses with 1 person.
         - `2` (float): Average frequency for houses with 2 people.
         - `3` (float): Average frequency for houses with 3 people.
@@ -343,7 +406,7 @@ This file defines the statistics and parameters for the `OutsideTap` end-use in 
 - `offset` (integer): Defines the time where a second use of the end-use is blocked.
 - `frequency`: frequency distribution of the end-use.
     - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'Negative_binomial'`.
-    - `average` (float): Average frequency of end-use.
+    - `average` (float): Average frequency of end-use, i.e. average number of outdoor events per day per household.
 - `subtype`: types of kitchen tap end-use. Each subtype has its own parameters
     - `subtype.appliance_use`
         - `penetration` (float): Probability of subtype use [%].
@@ -396,8 +459,8 @@ This file defines the statistics and parameters for the `Shower ` end-use in the
 - `offset` (integer): Defines the time where a second use of the end-use is blocked.
 - `temperature` (integer): Temperature of used water [°C].
 - `frequency`: frequency distribution of the end-use. Age dependent.
-    - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'binomial'`.
-    - `n` (float): number of showers per day
+    - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'Binomial'`.
+    - `n` (float): Number of showers per day per person.
     - `frequency.p`
         - `age_group` (float): There should be a different entry for each age grouping. Value is the probability of the age taking a shower on a given day.
 - `duration`: Age dependent. Duration of a shower for each of the age groups.
@@ -454,7 +517,7 @@ This file defines the statistics and parameters for the `WashingMachine` end-use
     - `5` (integer): Penetration rate for houses with 5 people.
 - `frequency`: Frequency distribution of the end-use.
     - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'Poisson'`.
-    - `frequency.average`: Average frequency of end-use.
+    - `frequency.average`: Average number of laundry cycles per day per household.
         - `1` (float): Average frequency for houses with 1 person.
         - `2` (float): Average frequency for houses with 2 people.
         - `3` (float): Average frequency for houses with 3 people.
@@ -477,7 +540,7 @@ This file defines the statistics and parameters for the `Wc` (toilet) end-use in
 - `discharge_intensity` (float): Discharge intensity [L/s].
 - `frequency`: Contains the frequency distribution data.
     - `distribution` (string): Type of distribution from where the frequency of the end-use will be drawn. Example: `'Poisson'`.
-    - `frequency.average`: Average frequency of use, dependent on age and gender.
+    - `frequency.average`: Average number of flushes per person per day, dependent on age and gender.
         - `child`: Average frequency for children.
             - `male` (float): Average frequency for male children [day^(-1)].
             - `female` (float): Average frequency for female children [day^(-1)].

@@ -61,7 +61,7 @@ distribution = 'Negative_binomial'
 
         [subtype.dishes.discharge_intensity]
             distribution = 'Uniform'
-            low = 0.0
+            low = 0.01
             high = 0.25
 
     [subtype.washing_hands]
@@ -80,7 +80,7 @@ distribution = 'Negative_binomial'
 
         [subtype.washing_hands.discharge_intensity]
             distribution = 'Uniform'
-            low = 0.0
+            low = 0.01
             high = 0.167
 
     [subtype.other]
@@ -99,5 +99,5 @@ distribution = 'Negative_binomial'
 
         [subtype.other.discharge_intensity]
             distribution = 'Uniform'
-            low = 0.0
+            low = 0.01
             high = 0.167

@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-def sample_start_time(prob_joint: np.ndarray, day_num: int, duration: int, previous_events: list, offset: int=0) -> (int, int):
+def sample_start_time(prob_joint: np.ndarray, day_num: int, duration: int, previous_events: list, offset: int=0) -> tuple[int, int]:
     """
     Samples a valid start time for an event, ensuring no overlap with previous events
     and no start within duration before the last sampled start time.
@@ -17,7 +17,7 @@ def sample_start_time(prob_joint: np.ndarray, day_num: int, duration: int, previ
     Returns:
         The pair (tuple) of the sampled start time and calculated end time.
     """
-    max_attempts = 10000  # Define a maximum number of attempts to prevent infinite loops
+    max_attempts = 100000  # Define a maximum number of attempts to prevent infinite loops
     for __ in range(max_attempts):
         start_index = np.random.choice(len(prob_joint), p=prob_joint)
         start = start_index + int(pd.to_timedelta('1 day').total_seconds()) * day_num

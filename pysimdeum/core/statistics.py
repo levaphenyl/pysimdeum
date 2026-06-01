@@ -3,20 +3,31 @@ import toml
 from dataclasses import dataclass, field
 from pysimdeum.utils.patterns import complex_daily_pattern, complex_enduse_pattern, complex_discharge_pattern
 from pysimdeum.data import DATA_DIR
-import pickle
+
 
 @dataclass
 class Statistics:
     """Statistics dataclass that contains all the relevant statistical information for pysimdeum."""
+    # Class attribute: same pointer for all instances.
+    expected_end_uses = [
+        'BathroomTap',
+        'Bathtub',
+        'Dishwasher',
+        'KitchenTap',
+        'OutsideTap',
+        'Shower',
+        'WashingMachine',
+        'Wc',
+    ]
 
-    country: str = 'NL'   
+    # Dataclass attribute (note the type declaration): unique for each instance.
+    country: str = 'NL'
     household: dict = field(default_factory=dict)
     diurnal_pattern: dict = field(default_factory=dict)
     end_uses: dict = field(default_factory=dict)
     statisticsdir: str = ""  # TODO: Find good solution for this dirty statistics file workaround
 
     def __post_init__(self):
-        
         # Check if pointing to a custom statistics directory or a country in the repository
         if os.path.isdir(self.country):
             self.statisticsdir = self.country
@@ -35,48 +46,27 @@ class Statistics:
         # load end-uses:
         self.end_uses = dict()
         path2end_use = os.path.join(self.statisticsdir, 'end_uses')
+        for end_use_name in self.expected_end_uses:
+            with open(os.path.join(path2end_use, f'{end_use_name}.toml'), 'r') as end_use_file:
+                self.end_uses[end_use_name] = self._convert_to_dict(toml.load(end_use_file))
 
-        bathtub_file = os.path.join(path2end_use, 'Bathtub.toml')
-        brtap_file = os.path.join(path2end_use, 'BathroomTap.toml')
-        dishwasher_file = os.path.join(path2end_use, 'Dishwasher.toml')
-        kitchen_tap_file = os.path.join(path2end_use, 'KitchenTap.toml')
-        outside_tap_file = os.path.join(path2end_use, 'OutsideTap.toml')
-        shower_file = os.path.join(path2end_use, 'Shower.toml')
-        washing_machine_file = os.path.join(path2end_use, 'WashingMachine.toml')
-        wc_file = os.path.join(path2end_use, 'Wc.toml')
-
-        self.end_uses['Wc'] = toml.load(open(wc_file, 'r'))
-        self.end_uses['Bathtub'] = toml.load(open(bathtub_file, 'r'))
-        self.end_uses['BathroomTap'] = toml.load(open(brtap_file, 'r'))
-        self.end_uses['Dishwasher'] = self._convert_to_dict(toml.load(open(dishwasher_file, 'r')))
-        self.end_uses['KitchenTap'] = toml.load(open(kitchen_tap_file, 'r'))
-        self.end_uses['OutsideTap'] = toml.load(open(outside_tap_file, 'r'))
-        self.end_uses['Shower'] = toml.load(open(shower_file, 'r'))
-        self.end_uses['WashingMachine'] = self._convert_to_dict(toml.load(open(washing_machine_file, 'r')))
-
-        # Pattern
-        self._initialize_patterns()
-
-    def _initialize_patterns(self):
-        self.end_uses['WashingMachine']['daily_pattern'] = complex_daily_pattern(self.end_uses['WashingMachine'])
-        self.end_uses['WashingMachine']['enduse_pattern'] = complex_enduse_pattern(self.end_uses['WashingMachine'])
-        self.end_uses['WashingMachine']['discharge_pattern'] = complex_discharge_pattern(self.end_uses['WashingMachine'], self.end_uses['WashingMachine']['enduse_pattern'])
-        self.end_uses['Dishwasher']['daily_pattern'] = complex_daily_pattern(self.end_uses['Dishwasher'])
-        self.end_uses['Dishwasher']['enduse_pattern'] = complex_enduse_pattern(self.end_uses['Dishwasher'])
-        self.end_uses['Dishwasher']['discharge_pattern'] = complex_discharge_pattern(self.end_uses['Dishwasher'], self.end_uses['Dishwasher']['enduse_pattern'])
-        self.end_uses['KitchenTap']['daily_pattern'] = complex_daily_pattern(self.end_uses['KitchenTap'], freq='15Min')
+            # Initialize special patterns
+            if end_use_name == 'KitchenTap':
+                self.end_uses[end_use_name]['daily_pattern'] = complex_daily_pattern(self.end_uses[end_use_name], freq='15Min')
+            elif end_use_name in ['WashingMachine', 'Dishwasher']:
+                self.end_uses[end_use_name]['daily_pattern'] = complex_daily_pattern(self.end_uses[end_use_name])
+                self.end_uses[end_use_name]['enduse_pattern'] = complex_enduse_pattern(self.end_uses[end_use_name])
+                self.end_uses[end_use_name]['discharge_pattern'] = complex_discharge_pattern(self.end_uses[end_use_name], self.end_uses[end_use_name]['enduse_pattern'])
 
     def _convert_to_dict(self, data):
+        """Convert dict subclasses to native Python `dict` for `pickle` to work.
+
+        `toml.load()` returns `DynamicInlineTableDict`, a subclass of `dict`.
+        It looks and behaves the same, until `pickle` tries to serialize it and fails.
+        """
         if isinstance(data, dict):
             return {k: self._convert_to_dict(v) for k, v in data.items()}
         elif isinstance(data, list):
             return [self._convert_to_dict(v) for v in data]
         else:
             return data
-    
-def main():
-    print(DATA_DIR)
-    stats = Statistics()
-
-if __name__ == '__main__':
-    main()
