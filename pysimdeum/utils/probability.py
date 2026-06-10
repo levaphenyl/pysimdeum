@@ -188,7 +188,7 @@ def sample_value(dist_name: str, **kwargs) -> Union[float, int]:
                     --------------------|-----------------------|------------------
                     Poisson             | `average`             | Used as lambda.
                     Negative Binomial   | `average`, `sigma`    | Converted to r and p.
-                    Lognormal           | `average`             | Converted to mean = log(average) - 0.5.
+                    Lognormal           | `average`, `sigma`    | Converted to mean = log(average) - sigma**2 / 2. Sigma is optional and defaults to 1.
 
     Returns:
         A scalar, sampled at random from the specified distribution.
@@ -221,7 +221,8 @@ def sample_value(dist_name: str, **kwargs) -> Union[float, int]:
         return RNG.negative_binomial(r, p)
 
     if dist_name == 'lognormal' and 'average' in float_kwargs:
-        return RNG.lognormal(mean=np.log(float_kwargs['average']) - 0.5, sigma=1.)
+        sigma = float_kwargs.get('sigma', 1.)
+        return RNG.lognormal(mean=np.log(float_kwargs['average']) - sigma * sigma / 2, sigma=sigma)
 
     try:
         dist_function = getattr(RNG, dist_name)

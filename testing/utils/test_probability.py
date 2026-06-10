@@ -11,6 +11,7 @@ VALID_CASES = [
     pytest.param('Poisson',           {'average': 0.80},              0,      2,  id='poisson-average-low'),
     pytest.param('Poisson',           {'lam': 0.80},                  0,      4,  id='poisson-lam'),
     pytest.param('Lognormal',         {'average': '57 Seconds'},      0,   6000,  id='lognormal-str-avg'),
+    pytest.param('Lognormal',         {'average': 14, 'sigma': 0.5},  0,    600,  id='lognormal-avg-sigma'),
     pytest.param('Uniform',           {'low': 0., 'high': 0.167},     0,  0.167,  id='uniform-small'),
     pytest.param('Uniform',           {'low': 20, 'high': 40},       20,     40,  id='uniform-int-range'),
     pytest.param('Negative_binomial', {'average': 10.1, 'sigma': 7},  0,     71,  id='nb-average-sigma'),
