@@ -2,8 +2,6 @@ import pandas as pd
 from datetime import datetime
 from typing import Union
 
-from pysimdeum.tools import infoworks as iw
-
 from pysimdeum.tools.helper import create_usage_data
 from pysimdeum.core.house import HousePattern, Property, House
 
@@ -18,17 +16,6 @@ def export_water_use_distribution(inputproperty: Union[list, House], name: str='
     appliance_data.to_excel(writer, sheet_name = 'data')
     metadata.to_excel(writer, sheet_name = 'metadata')
     writer.close()
-
-def write_simdeum_patterns_to_ddg(houses: list, timestep: int, Q_option: str, patternfile_option: int, output_file: str):
-    # house can be either be a list of filenames or a list of houses
-    # timestep the output timestep of the pattern. minimum is 1 minute
-    # Q_option for now only 'm3/h' TODO is this true? are the units not L/s?????
-    # for now only 1 all patterns in 1 file
-    # output_file file to write to
-
-    output = __get_output_dataframe(houses, timestep) 
-    test = 2
-    
 
 def write_simdeum_patterns_to_xlsx(houses: list, timestep: int, Q_option: str, patternfile_option: int, output_file: str):
     """Exports total water usage patterns for a list of houses to an Excel file.

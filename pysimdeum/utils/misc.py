@@ -5,6 +5,7 @@ import geopandas as gpd
 _TIME_AGG_FREQ = {
     's':     '1s',
     'm':     '1min',
+    '5min':  '5min',
     '15min': '15min',
     '30min': '30min',
     'h':     'h',
@@ -26,6 +27,7 @@ def consumption_time_agg(da, time_agg='h'):
 
             * ``'s'``     — keep at seconds (no change)
             * ``'m'``     — 1-minute means
+            * ``'5min'``  — 5-minute means
             * ``'15min'`` — 15-minute means
             * ``'30min'`` — 30-minute means
             * ``'h'``     — hourly means (default, matches ``hh_discharge_nutrients``)

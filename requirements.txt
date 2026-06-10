@@ -5,6 +5,7 @@ toml
 xarray
 xlsxwriter
 scipy
+tqdm
 mike
 mkdocs
 mkdocs-material

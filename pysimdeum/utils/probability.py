@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import warnings
 from typing import Union
 from scipy.stats import truncnorm
 from scipy.optimize import minimize
@@ -134,6 +135,16 @@ def optimise_probabilities(starting_probs, total_population, total_households, h
     Returns:
         np.ndarray: Optimized probabilities for each household category.
     """
+    # no households means nothing to optimise
+    if total_households == 0:
+        return np.array(starting_probs)
+
+    # Clamp the target population so the required average household size stays within range
+    min_pop = total_households * float(np.min(household_sizes))
+    max_pop = total_households * float(np.max(household_sizes))
+    original_population = total_population
+    total_population = float(np.clip(total_population, min_pop, max_pop))
+    
     # Define the objective function (minimize the difference from starting probabilities)
     def objective(probs):
         return np.sum((probs - starting_probs) ** 2)

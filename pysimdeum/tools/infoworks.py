@@ -216,7 +216,7 @@ def generate_ws_ddg(subcatchment_profiles, output_dir, Q_option='l_s', patternfi
         pad = max(0, 14 - len(trunc) - len(str(l_pat)))
         return f"{trunc}{' ' * pad}{l_pat}     0     0     0        {pat_name}"
 
-    _h2 = "          " + "  ".join(["1.00"] * 12) + "  1  1"  # 12 monthly factors
+    _h2 = "          " + "  ".join(["1.00"] * 12) + " 1 1"  # 12 monthly factors
     _h3 = "          " + "  ".join(["1.00"] * 7)              # 7 day-of-week factors
 
     def _data_row(step_in_day, value, day_num=None):
@@ -244,7 +244,7 @@ def generate_ws_ddg(subcatchment_profiles, output_dir, Q_option='l_s', patternfi
     if patternfile_option == 1:
         out_path = os.path.join(output_dir, 'SPG_zone_pattern_file.ddg')
         with open(out_path, 'w') as f:
-            f.write('SIMDEUM Pattern Generator - zone consumption patterns\n')
+            f.write('SIMDEUM Pattern Generator - patterns\n')
             for zone_id in zone_ids:
                 vals = zone_values[zone_id]
                 pat_name = f"S_{zone_id}"
@@ -260,7 +260,7 @@ def generate_ws_ddg(subcatchment_profiles, output_dir, Q_option='l_s', patternfi
         for day in range(max_num_days):
             out_path = os.path.join(output_dir, f'SPG_zone_pattern_file{day + 1}.ddg')
             with open(out_path, 'w') as f:
-                f.write('SIMDEUM Pattern Generator - zone consumption patterns\n')
+                f.write('SIMDEUM Pattern Generator - patterns\n')
                 for zone_id in zone_ids:
                     day_vals = zone_values[zone_id][day * steps_per_day:(day + 1) * steps_per_day]
                     pat_name = f"S_{zone_id}"

@@ -3,17 +3,48 @@ import geopandas as gpd
 import numpy as np
 import os
 from shapely.ops import unary_union
+from tqdm import tqdm
+import toml
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
 from pysimdeum.data import DATA_DIR
 from pysimdeum.utils.probability import optimise_probabilities
 from pysimdeum.utils.misc import fix_invalid_geometries, consumption_time_agg
 import pysimdeum.utils.wastewater_quality as wq
-from pysimdeum.api import build_multi_hh
-import toml
+from pysimdeum.api import built_house
+
+
+
+def _simulate_house_worker(args):
+    """Module-level worker function for parallel house simulation."""
+    household_id, house_type, duration, country, simulate_discharge, spillover, time_agg = args
+    try:
+        house = built_house(
+            house_type=house_type,
+            duration=duration,
+            country=country,
+            simulate_discharge=simulate_discharge,
+            spillover=spillover,
+        )
+    except RuntimeError:
+        return None
+
+    consumption_profile = house.consumption.sum(['enduse', 'user']).sel(flowtypes='totalflow')
+
+    flow_series = None
+    weighted_nutrients = None
+    if simulate_discharge and hasattr(house, 'discharge') and house.discharge is not None:
+        hn = wq.hh_discharge_nutrients(house.discharge, time_agg=time_agg).set_index('time')
+        flow_series = hn['flow']
+        nutrient_cols = [c for c in hn.columns if c != 'flow']
+        weighted_nutrients = hn[nutrient_cols].multiply(flow_series, axis=0)
+
+    return household_id, consumption_profile, flow_series, weighted_nutrients
 
 
 class DataPrep:
     """
-    A class to preprocess input datasets based on a TOML configuration file.
+    Preprocess input datasets based on a TOML configuration file.
 
     This class reads datasets from specified file paths provided in a config file,
     renames columns based on the configuration, and prepares them for use in the Population class.
@@ -33,6 +64,7 @@ class DataPrep:
         """
         if config_path and os.path.isfile(config_path):
             self.config_file = config_path
+            self.country = country
         elif os.path.isdir(country):
             self.config_file = os.path.join(country, 'spatial_config.toml')
             self.country = None
@@ -74,7 +106,8 @@ class DataPrep:
         else:
             dataset = pd.read_csv(dataset_path)
 
-        # Rename and select only the columns of interest
+        # Rename and select only the columns that exist in the dataset
+        column_mapping = {k: v for k, v in column_mapping.items() if k in dataset.columns}
         dataset = dataset.rename(columns=column_mapping)[list(column_mapping.values())]
 
         return dataset
@@ -99,10 +132,11 @@ class Population:
     Model population distribution and households occupancies within subcatchments and boundaries,
     to inform simulation of multiple houses.
 
-    This class performs spatial operations, assigns household types, and prepares data
-    for simulation of multiple houses in a region. It uses spatial data to clip boundaries
-    and houses, fit household probabilities, and assign occupancy types. The class returns
-    a series of pysimdeum.House instances.
+    Performs spatial operations, assigns occupancy types, and runs parallel
+    simulation of multiple houses. It clips boundaries and houses to subcatchment areas,
+    fits occupancy-type probabilities against census counts, simulates each household,
+    and aggregates consumption and wastewater profiles to subcatchment level. Individual
+    House objects are discarded after use to keep memory usage constant.
 
     Attributes:
         subcatchments (gpd.GeoDataFrame): GeoDataFrame containing subcatchment geometries.
@@ -111,7 +145,6 @@ class Population:
         houses (gpd.GeoDataFrame): GeoDataFrame containing house geometries and attributes.
         boundary_counts (pd.DataFrame): DataFrame containing household and population totals for each boundary.
         results (dict): Dictionary containing household counts and probabilities for each boundary.
-        houses_instances (list): List of pysimdeum.House instances prepared for simulation.
         sample (bool): Whether to sample a subset of houses or proces the entire dataset.
     """
 
@@ -122,7 +155,8 @@ class Population:
             duration: str = '1 day',
             country: str = None,
             simulate_discharge: bool = False,
-            spillover: bool = False
+            spillover: bool = False,
+            n_workers: int = None
         ):
         """
         Initialises the Population class with preprocessed datasets.
@@ -133,6 +167,8 @@ class Population:
                 - 'boundaries': GeoDataFrame of boundaries.
                 - 'boundaries_pop': DataFrame of population data for boundaries.
                 - 'houses': GeoDataFrame of houses.
+            n_workers (int): Number of parallel worker processes for house simulation.
+                Defaults to None (use all available CPU cores).
         """
         
         self.subcatchments = fix_invalid_geometries(datasets['subcatchments'])
@@ -141,11 +177,13 @@ class Population:
         self.houses = datasets['houses']
         self.sample = sample
 
+        print('Preparing spatial data and household assignments...')
         self._prepare_data()
+        print(f'  {len(self.household_data)} households prepared across {len(self.boundary_counts)} boundaries.')
 
-        self.houses_instances = build_multi_hh(self.household_data, duration=duration, country=country, simulate_discharge=simulate_discharge, spillover=spillover)
-        self.subcatchment_profiles = self.calculate_subcatchment_profiles()
-        self.subcatchment_ww_profiles = self.calculate_subcatchment_ww_nutrient_profiles()
+        print('Simulating households and aggregating profiles...')
+        self._simulate_and_aggregate(duration=duration, country=country, simulate_discharge=simulate_discharge, spillover=spillover, n_workers=n_workers)
+        print('Done.')
 
     def _prepare_data(self):
         """
@@ -160,14 +198,113 @@ class Population:
 
         probabilities = np.array([0.30, 0.34, 0.36])
         household_sizes = np.array([1, 2, 3.75])
-        
+
+        print('  Clipping boundaries and houses to subcatchments...')
         self.boundary_counts = self.spatial_clipping_and_pop_count()
+        print(f'  Fitting household probabilities for {len(self.boundary_counts)} boundaries...')
         self.results = self.fit_hh_population(probabilities, household_sizes)
-        
+        print('  Assigning occupancy types...')
         self.houses['occupancy_type'] = None
         self.houses = self.assign_occupancy_types()
         self.clip_houses_to_subs()
         self.household_data = self.household_data_prep()
+
+
+    def _simulate_and_aggregate(self, duration, country, simulate_discharge, spillover, time_agg='5min', n_workers=None):
+        """
+        Simulates every household and accumulates subcatchment-level consumption
+        and wastewater profiles, discarding each House object immediately after use.
+        """
+        house_to_sub = self.houses.set_index('house_id')['subcatchment_id'].to_dict()
+
+        consumption_totals = {}
+        ww_flow_sums = {}
+        ww_weighted_sums = {}
+        skipped = 0
+
+        args_list = [
+            (hid, htype, duration, country, simulate_discharge, spillover, time_agg)
+            for hid, htype in self.household_data.items()
+        ]
+
+        if n_workers == 1:
+            for args in tqdm(args_list, desc='Simulating households', unit='hh'):
+                if self._accumulate_result(_simulate_house_worker(args), house_to_sub, consumption_totals, ww_flow_sums, ww_weighted_sums):
+                    skipped += 1
+        else:
+            n_cpu = n_workers or os.cpu_count()
+            print(f'  Using {n_cpu} parallel workers.')
+            with ProcessPoolExecutor(max_workers=n_cpu) as executor:
+                futures = {executor.submit(_simulate_house_worker, args): args[0] for args in args_list}
+                for future in tqdm(as_completed(futures), total=len(futures), desc='Simulating households', unit='hh'):
+                    if self._accumulate_result(future.result(), house_to_sub, consumption_totals, ww_flow_sums, ww_weighted_sums):
+                        skipped += 1
+
+        self.subcatchment_profiles = {
+            sub_id: consumption_time_agg(total, time_agg)
+            for sub_id, total in consumption_totals.items()
+        }
+
+        self.subcatchment_ww_profiles = (
+            self._finalise_ww_profiles(ww_flow_sums, ww_weighted_sums)
+            if ww_flow_sums else {}
+        )
+
+        self.houses_instances = {}
+        if skipped:
+            print(f'  Warning: {skipped} households skipped due to simulation errors.')
+
+
+    def _accumulate_result(self, result, house_to_sub, consumption_totals, ww_flow_sums, ww_weighted_sums):
+        """Fold a worker result into the running subcatchment accumulators."""
+        if result is None:
+            return True
+        household_id, consumption_profile, flow_series, weighted_nutrients = result
+        sub_id = house_to_sub.get(household_id)
+        if sub_id is None:
+            return False
+        if sub_id not in consumption_totals:
+            consumption_totals[sub_id] = consumption_profile
+        else:
+            consumption_totals[sub_id] = consumption_totals[sub_id] + consumption_profile
+        if flow_series is not None:
+            if sub_id not in ww_flow_sums:
+                ww_flow_sums[sub_id] = flow_series.copy()
+                ww_weighted_sums[sub_id] = weighted_nutrients.copy()
+            else:
+                ww_flow_sums[sub_id] = ww_flow_sums[sub_id].add(flow_series, fill_value=0)
+                ww_weighted_sums[sub_id] = ww_weighted_sums[sub_id].add(weighted_nutrients, fill_value=0)
+        return False
+
+
+    def _finalise_ww_profiles(self, flow_sums, weighted_sums):
+        """Build per-subcatchment WW profiles from the incremental accumulators.
+        Converts flow-weighted nutrient sums to concentrations, computes daily
+        and hourly averages for export.
+        """
+        final_profiles = {}
+        for sub_id in flow_sums:
+            flow = flow_sums[sub_id]
+            weighted = weighted_sums[sub_id]
+
+            conc = weighted.divide(flow, axis=0).fillna(0)
+
+            ww_profile = conc.copy()
+            ww_profile.insert(0, 'flow', flow)
+            ww_profile = ww_profile.reset_index()
+
+            ww_profile['date'] = ww_profile['time'].dt.date
+            daily_flow = ww_profile.groupby('date')['flow'].sum().to_dict()
+            hourly_average = {date: f / 24 for date, f in daily_flow.items()}
+            ww_profile = ww_profile.drop(columns=['date'])
+
+            final_profiles[sub_id] = {
+                'daily_flow': daily_flow,
+                'hourly_average': hourly_average,
+                'ww_profile': ww_profile
+            }
+        return final_profiles
+
 
 
     def _clip_boundaries_to_subcatchments(self):
@@ -199,7 +336,9 @@ class Population:
         and filters for houses with the `BaseFuncti` attribute set to 'DWELLING'.
         """
         self.houses = gpd.sjoin(self.houses, self.boundaries, how='inner', predicate='intersects').drop(columns='index_right').rename(columns={'boundary_id': 'hh_boundary_id'})
-        self.houses = self.houses[self.houses['function'] == 'DWELLING'][['house_id', 'hh_boundary_id', 'geometry']]
+        if 'function' in self.houses.columns:
+            self.houses = self.houses[self.houses['function'] == 'DWELLING']
+        self.houses = self.houses[['house_id', 'hh_boundary_id', 'geometry']]
 
     
     def spatial_clipping_and_pop_count(self):
@@ -341,175 +480,3 @@ class Population:
             household_data = self.houses[['house_id', 'occupancy_type']].set_index('house_id')['occupancy_type'].to_dict()
         
         return household_data
-    
-
-    def _house_subcatchment_mapping(self):
-        """Generates a dictionary with subcatchment IDs as keys and lists of house IDs as values.
-
-        Groups houses by their `subcatchment_id` and creates a dictionary where the keys are
-        subcatchment IDs and the values are lists of house TOIDs/
-
-        Returns:
-            dict: A dictionary where:
-                - Keys are `subcatchment_id` (unique identifiers for each subcatchment).
-                - Values are lists of `house_id` (TOIDs) for houses in each subcatchment.
-        """
-        if 'subcatchment_id' not in self.houses.columns or 'house_id' not in self.houses.columns:
-            raise ValueError("The houses GeoDataFrame must contain 'subcatchment_id' and 'house_id' columns.")
-
-        # Group houses by subcatchment_id and collect house_id (TOIDs) as lists
-        self.subcatchment_houses = (
-            self.houses.groupby('subcatchment_id')['house_id']
-            .apply(list)
-            .to_dict()
-        )
-
-        return self.subcatchment_houses
-    
-
-    def calculate_subcatchment_profiles(self, time_agg='15min'):
-        """
-        Calculates aggregated consumption profiles per subcatchment.
-
-        House profiles are summed across all houses in each subcatchment and then
-        resampled to the requested time resolution using ``consumption_time_agg``
-
-        Args:
-            time_agg (str): Target time resolution. One of ``'s'``, ``'m'``,
-                ``'15min'``, ``'30min'``, ``'h'`` (default).
-        """
-        self.subcatchment_houses = self._house_subcatchment_mapping()
-
-        # Initialise a dictionary to store the aggregated profiles
-        subcatchment_profiles = {}
-
-        # Iterate through each subcatchment and its associated house IDs
-        for subcatchment_id, house_ids in self.subcatchment_houses.items():
-            total_profile = None  # Initialise the total profile for this subcatchment
-
-            # Iterate through each house ID in the subcatchment
-            for house_id in house_ids:
-                # Retrieve the house instance from houses_instances
-                house_instance = self.houses_instances.get(house_id)
-
-                if house_instance is None:
-                    # Skip if the house instance is not found
-                    continue
-
-                # Extract the consumption DataArray and select the total flow
-                house_profile = (
-                    house_instance.consumption
-                    .sum(['enduse', 'user'])  # Sum across end uses and users
-                    .sel(flowtypes='totalflow')  # Select the total flow
-                )
-
-                # Aggregate the house profile into the total profile for the subcatchment
-                if total_profile is None:
-                    total_profile = house_profile
-                else:
-                    total_profile += house_profile
-
-            if total_profile is not None:
-                subcatchment_profiles[subcatchment_id] = consumption_time_agg(total_profile, time_agg)
-
-        return subcatchment_profiles
-
-
-    def calculate_subcatchment_ww_nutrient_profiles(self):
-        """
-        Aggregates wastewater flow and nutrient concentrations for each subcatchment.
-
-        This method processes the discharge data of all houses, calculates nutrient concentrations 
-        and flow rates using the `hh_discharge_nutrients` function, and aggregates the results 
-        by subcatchment and time. The aggregated data includes total flow and weighted average 
-        nutrient concentrations for each subcatchment.
-
-        Returns:
-            dict: A dictionary where:
-                - Keys are `subcatchment_id` (unique identifiers for each subcatchment).
-                - Values are dictionaries containing:
-                    - `daily_flow` (dict): A dictionary where keys are dates and values are the total 
-                    daily flow (in liters) for the subcatchment.
-                    - `hourly_average` (dict): A dictionary where keys are dates and values are the 
-                    average hourly flow (in liters) for the subcatchment (calculated as daily flow / 24).
-                    - `ww_profile` (pd.DataFrame): A DataFrame containing the aggregated data for the 
-                    subcatchment with the following columns:
-                        - `time`: The timestamp of the aggregated data.
-                        - `flow`: The total flow for all houses in the subcatchment at each timestamp.
-                        - Nutrient columns (e.g., `n`, `p`, `cod`, `bod5`, `ss`, `amm`): Weighted average 
-                        nutrient concentrations for the subcatchment at each timestamp.
-
-        Notes:
-            - The method skips houses that do not have discharge data.
-            - Nutrient concentrations are weighted by flow to calculate the average for each subcatchment.
-            - Missing timestamps are filled with zeros during the aggregation process.
-        """
-        # Initialise a list to store all house nutrient data
-        all_house_data = []
-
-        # Iterate through all houses and calculate nutrient data
-        for house_id, house_instance in self.houses_instances.items():
-            if house_instance is None or not hasattr(house_instance, 'discharge'):
-                # Skip if the house instance is not found or does not have discharge data
-                continue
-
-            # Extract the discharge data for the house
-            house_discharge = house_instance.discharge
-
-            # Apply the hh_discharge_nutrients function to calculate nutrient concentrations and flow
-            house_nutrients = wq.hh_discharge_nutrients(house_discharge)
-
-            # Add the subcatchment ID to the house nutrient data
-            house_nutrients['subcatchment_id'] = self.houses.loc[self.houses['house_id'] == house_id, 'subcatchment_id'].values[0]
-
-            # Append the house nutrient data to the list
-            all_house_data.append(house_nutrients)
-
-        # Combine all house nutrient data into a single DataFrame
-        all_house_data_df = pd.concat(all_house_data, ignore_index=True)
-
-        # Group by subcatchment and time, and calculate total flow and weighted nutrient concentrations
-        grouped = all_house_data_df.groupby(['subcatchment_id', 'time'])
-        subcatchment_wq_profiles = {}
-
-        for (subcatchment_id, time), group in grouped:
-            # Aggregate flow and calculate weighted nutrient concentrations
-            total_flow = group['flow'].sum()
-
-            # Calculate weighted average for nutrient columns
-            nutrient_columns = [col for col in group.columns if col not in ['subcatchment_id', 'time', 'flow']]
-            weighted_nutrients = (group[nutrient_columns].multiply(group['flow'], axis=0).sum() / total_flow).to_dict()
-
-            # Create a row with aggregated data
-            aggregated_row = {'time': time, 'flow': total_flow, **weighted_nutrients}
-
-            # Append the aggregated row to the subcatchment's data
-            if subcatchment_id not in subcatchment_wq_profiles:
-                subcatchment_wq_profiles[subcatchment_id] = []
-            subcatchment_wq_profiles[subcatchment_id].append(aggregated_row)
-
-        # Convert lists of rows into DataFrames for each subcatchment and calculate additional metrics
-        final_profiles = {}
-        for subcatchment_id, rows in subcatchment_wq_profiles.items():
-            # Combine rows into a single DataFrame
-            ww_profile = pd.DataFrame(rows).fillna(0)
-
-            # Calculate daily flow
-            ww_profile['date'] = ww_profile['time'].dt.date
-            daily_flow = ww_profile.groupby('date')['flow'].sum().to_dict()
-
-            # Calculate hourly average flow
-            hourly_average = {date: flow / 24 for date, flow in daily_flow.items()}
-            
-            ww_profile = ww_profile.drop(columns=['date'])
-
-            # Store the results in the final dictionary
-            final_profiles[subcatchment_id] = {
-                'daily_flow': daily_flow,
-                'hourly_average': hourly_average,
-                'ww_profile': ww_profile
-            }
-
-        return final_profiles
-    
-
