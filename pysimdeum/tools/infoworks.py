@@ -185,7 +185,7 @@ def generate_ws_ddg(subcatchment_profiles, output_dir, Q_option='l_s', patternfi
         )
 
     steps_per_day = 86400 // timestep
-    max_num_days = 7  # InfoWorks only knows 7 days of the week
+    max_num_days = 7  # InfoWorks 7 days of the week
     total_steps_needed = max_num_days * steps_per_day
 
     # Read simulation duration directly from the time coordinate of the first zone

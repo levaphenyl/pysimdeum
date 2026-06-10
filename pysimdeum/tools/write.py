@@ -107,33 +107,3 @@ def __get_housepattern_output(count, output, loadedhousepattern, flowtype):
         for i in range(0, len(loadedhousepattern.consumption.patterns)):
             valueslist.extend(loadedhousepattern.consumption.sel(patterns=i).sel(flowtypes=flowtype).values)
     output['pysimdeum ' + str(count)] = valueslist
-
-
-def generate_infoworks_csv(subcatchment_profiles, output_dir):
-    """
-    Generates InfoWorks ICM wastewater generator CSV files.
-
-    Delegates to `pysimdeum.tools.infoworks.generate_icm_csv`.
-
-    Args:
-        subcatchment_profiles (dict): Dict from ``Population.subcatchment_ww_profiles``.
-        output_dir (str): Directory where the CSV files will be saved.
-    """
-    iw.generate_icm_csv(subcatchment_profiles, output_dir)
-
-def generate_zone_ddg(subcatchment_profiles, output_dir, Q_option='l_s', patternfile_option=1):
-    """
-    Writes InfoWorks WS demand diagram (.ddg) files from zone consumption profiles.
-
-    Delegates to `pysimdeum.tools.infoworks.generate_ws_ddg`.
-
-    Args:
-        subcatchment_profiles (dict): Dict of {zone_id: xarray.DataArray} from
-            ``Population.subcatchment_profiles``. Values must be in L/s.
-        output_dir (str): Directory where output files are written.
-        Q_option (str): Output flow unit — ``'m3_h'``, ``'m3_day'``, ``'l_s'``,
-            ``'l_min'``, or ``'multipliers'``.
-        patternfile_option (int): ``1`` = all zones in one file,
-            ``2`` = one file per day of the week.
-    """
-    iw.generate_ws_ddg(subcatchment_profiles, output_dir, Q_option, patternfile_option)
