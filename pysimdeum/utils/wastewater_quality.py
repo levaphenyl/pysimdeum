@@ -150,6 +150,7 @@ def discharge_time_agg(df, time_agg='h'):
         time_agg (str, optional): The time aggregation level. Options are:
             - 's': Aggregate by seconds.
             - 'm': Aggregate by minutes.
+            - '5min': Aggregate by 5-minute intervals.
             - '15min': Aggregate by 15-minute intervals.
             - '30min': Aggregate by 30-minute intervals.
             - 'h': Aggregate by hours (default).
@@ -172,6 +173,9 @@ def discharge_time_agg(df, time_agg='h'):
     elif time_agg == 'm':
         df['agg_time'] = df['time'].dt.floor('min')  # Round to the nearest minute
         freq = 'min'
+    elif time_agg == '5min':
+        df['agg_time'] = df['time'].dt.floor('5min')  # Round to the nearest 5 minutes
+        freq = '5min'
     elif time_agg == '15min':
         df['agg_time'] = df['time'].dt.floor('15T')  # Round to the nearest 15 minutes
         freq = '15T'
