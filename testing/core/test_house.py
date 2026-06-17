@@ -30,6 +30,9 @@ def ready_houses(n_iter=100) -> list:
         prop = Property(statistics=stats)
         house = prop.built_house()
         house.populate_house()
+        for user in house.users:
+            user.compute_presence(statistics=stats)
+
         houses.append(house)
 
     return houses
@@ -53,12 +56,15 @@ class TestHouse:
         wc_names = {'WcNormal', 'WcNormalSave', 'WcNew', 'WcNewSave'}
         bathing_names = {'NormalShower', 'FancyShower', 'Bathtub'}
         for house in ready_houses:
+            house.furnish_house()
             # After furnishing, the house must have at least one appliance.
             assert hasattr(house, 'appliances')
             assert len(house.appliances) > 0
             # Every appliance must be a subclass of EndUse.
             assert all(isinstance(a, EndUse) for a in house.appliances)
             appliance_unique_names = {a.name for a in house.appliances}
+            # Every furnished house should contain a kitchen faucet.
+            assert "KitchenTap" in appliance_unique_names
             # Every furnished house should contain a WC variant.
             assert appliance_unique_names & wc_names, (
                 f"No WC found among {appliance_unique_names}"
