@@ -236,29 +236,33 @@ class House(Property):
             raise NotImplementedError('Household type is not implemented')
 
     def furnish_house(self):
+        """Add appliances to the house, using the configured penetrations as probabilities.
+        Call this function before simulating.
+        Does nothing if the house already has appliances.
+        """
+        if len(self.appliances) == 0:
+            for appliances in self.statistics.end_uses.values():
+                penetration = appliances['penetration']
+                classname = appliances['classname']
+                inhabitants = str(len(self.users))
 
-        for key, appliances in self.statistics.end_uses.items():
+                u = np.random.uniform() * 100  # probability in percent
 
-            penetration = appliances['penetration']
-            classname = appliances['classname']
-            inhabitants = str(len(self.users))
+                # penetration dependent on number of inhabitants
+                if isinstance(penetration, dict):
+                    penetration = penetration[inhabitants]
 
-            u = np.random.uniform() * 100  # probability in percent
+                if u <= penetration:
+                    if classname == 'Shower':
+                        showertype = chooser(appliances['subtype'], 'penetration')
+                        eu_instance = getattr(EndUses, showertype)(statistics=appliances)
+                    elif classname == 'Wc':
+                        wctype = chooser(appliances['subtype'], 'penetration')
+                        eu_instance = getattr(EndUses, wctype)(statistics=appliances)
+                    else:
+                        eu_instance = getattr(EndUses, classname)(statistics=appliances)
 
-            # penetration dependent on number of inhabitants
-            if isinstance(penetration, dict):
-                penetration = penetration[inhabitants]
-
-            if u <= penetration:
-                if classname == 'Shower':
-                    showertype = chooser(appliances['subtype'], 'penetration')
-                    eu_instance = getattr(EndUses, showertype)(statistics=appliances)
-                elif classname == 'Wc':
-                    wctype = chooser(appliances['subtype'], 'penetration')
-                    eu_instance = getattr(EndUses, wctype)(statistics=appliances)
-                else:
-                    eu_instance = getattr(EndUses, classname)(statistics=appliances)
-                self.appliances.append(eu_instance)
+                    self.appliances.append(eu_instance)
 
     def init_consumption(self):
         # todo: can get rid off, functionality shifted to simulate
