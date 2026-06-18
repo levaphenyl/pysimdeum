@@ -16,11 +16,14 @@ from pysimdeum.utils.patterns import handle_spillover_consumption, handle_discha
 @dataclass
 class EndUse:
     """Base class for end-uses."""
-    statistics: dict = field(repr=False)  # dict object from core.Statistics.end_uses associated with the end-use
-    name: str = "EndUse"  # ... name of the end-use
+    # Class attributes (shared across all instances).
     cold_water_temp = 10
     hot_water_temp = 60
-    discharge_events = []
+
+    # Instance attributes.
+    statistics: dict = field(repr=False)  # dict object from core.Statistics.end_uses associated with the end-use
+    name: str = "EndUse"  # ... name of the end-use
+    discharge_events: list = field(default_factory=list)
 
     def __post_init__(self):
         """Initialize field values that depend on other fields, among others."""
