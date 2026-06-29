@@ -257,9 +257,9 @@ class Bathtub(EndUse):
             prob_user = user.presence.values
 
             for i in range(freq):
-
-                duration, intensity, temperature = self.fct_duration_intensity_temperature()
-                temperature = self.statistics['temperature']
+                duration = self.fct_duration()
+                intensity = self.fct_intensity()
+                temperature = self.temperature()
                 prob_joint = normalize(prob_user * prob_usage)
 
                 start, end = sample_start_time(prob_joint, day_num, duration, previous_events, self.offset)

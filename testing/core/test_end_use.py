@@ -325,3 +325,20 @@ class TestChildEndUseClasses:
         assert len(pattern) > 0
         assert (pattern >= 0).all()
         assert isinstance(pattern.index, pd.TimedeltaIndex)
+
+    @pytest.mark.parametrize('cls, stats_key', ALL_END_USES)
+    def test_simulate(self, nl_stats, cls, stats_key):
+        """All end-uses can simulate a single user over one day."""
+        end_use = cls(statistics=nl_stats.end_uses[stats_key])
+        users = [User(id='user_1', age='adult', gender='female', job=True)]
+        users[0].compute_presence(statistics=nl_stats)
+        shape = (N_PTS, len(users) + 1, 2, 2, 2)
+        consumption = np.zeros(shape)
+        discharge = np.zeros(shape)
+        consumption, discharge = end_use.simulate(consumption, discharge, users=users, ind_enduse=0, simulate_discharge=True)
+        # Simulate does not modify the shape of the consumption/discharge arrays.
+        assert consumption.shape == shape
+        assert discharge.shape == shape
+        # Simulate produces positive values.
+        assert (consumption >= 0).all().all()
+        assert (discharge >= 0).all().all()
