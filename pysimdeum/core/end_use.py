@@ -24,10 +24,17 @@ class EndUse:
     statistics: dict = field(repr=False)  # dict object from core.Statistics.end_uses associated with the end-use
     name: str = "EndUse"  # ... name of the end-use
     discharge_events: list = field(default_factory=list)
+    intensity: float = 0.  # Flow rate for each end use in L/s.
 
     def __post_init__(self):
         """Initialize field values that depend on other fields, among others."""
         self.offset = int(pd.Timedelta(self.statistics['offset']).total_seconds())
+        if 'intensity' in self.statistics:
+            if isinstance(self.statistics['intensity'], dict):
+                distribution_name, distribution_params = self.get_statistical_params(self.statistics['intensity'])
+                self.intensity = sample_value(distribution_name, **distribution_params)
+            else:
+                self.intensity = self.statistics['intensity']
 
     def init_consumption(self, users: list, time_resolution: str='1s') -> pd.DataFrame:
         """Initialization of a pandas dataframe to store the  consumptions.
@@ -164,6 +171,9 @@ class EndUse:
         duration = round(sample_value(d_dist, **d_stats))
         i_dist, i_stats = self.get_statistical_params(self.statistics['subtype'][self.subtype]['intensity'])
         intensity = sample_value(i_dist, **i_stats)
+        if self.intensity > 0.:
+            intensity *= self.intensity  # Expect subtype intensity to be a fraction of the end-use intensity if defined.
+
         temperature = self.statistics['subtype'][self.subtype]['temperature']
         return duration, intensity, temperature
 
@@ -206,7 +216,7 @@ class Bathtub(EndUse):
 
         """
         # fixed intensity
-        return self.statistics['intensity']
+        return self.intensity
 
     def temperature(self):
         """Obtain the temperature of a bath
@@ -777,7 +787,6 @@ class Wc(EndUse):
         flush_interuption = self.statistics['subtype'][self.name]['flush_interuption']
         prob_flush_interuption = self.statistics['prob_flush_interuption']
 
-        intensity = self.statistics['intensity']
         temperature = self.statistics['temperature']
         average = to_timedelta(self.statistics['subtype'][self.name]['duration'])
 
@@ -789,7 +798,7 @@ class Wc(EndUse):
 
         duration = int(average.total_seconds())
 
-        return duration, intensity, temperature
+        return duration, self.intensity, temperature
 
     def calculate_discharge(self, discharge, start, duration, intensity, temperature_fraction, j, ind_enduse, pattern_num, usage):
         incoming_water = intensity * duration

@@ -9,6 +9,7 @@ import pytest
 import numpy as np
 import pandas as pd
 from pysimdeum.core.statistics import Statistics
+from pysimdeum.core.user import User
 from pysimdeum.core.end_use import (
     EndUse,
     BathroomTap,
@@ -77,15 +78,23 @@ def end_use():
 class TestParentEndUseClass:
     """The class methods inherited from EndUse work as intended."""
 
-    @pytest.mark.parametrize('offset, expected', [
-        pytest.param(0, 0, id='null_offset'),
-        pytest.param('2 Hours', 7200, id='hours_offset'),
-        pytest.param('20 Minutes', 1200, id='minutes_offset'),
+    @pytest.mark.parametrize('offset, expected_offset, intensity, expected_intensity', [
+        pytest.param(0, 0, None, 0.0, id='null_offset_no_intensity'),
+        pytest.param('2 Hours', 7200, None, 0.0, id='hours_offset_no_intensity'),
+        pytest.param('20 Minutes', 1200, None, 0.0, id='minutes_offset_no_intensity'),
+        pytest.param('0s', 0, 0.5, 0.5, id='zero_offset_scalar_intensity'),
+        pytest.param('1 Minute', 60, 0.75, 0.75, id='minute_offset_scalar_intensity'),
     ])
-    def test_construction_and_offset(self, offset, expected):
-        """Instantiation sets the offset."""
-        end_use = EndUse(statistics={'offset': offset})
-        assert end_use.offset == expected
+    def test_construction_offset_and_intensity(self, offset, expected_offset, intensity, expected_intensity):
+        """Instantiation sets both offset and intensity correctly."""
+        stats = {'offset': offset}
+        if intensity is not None:
+            stats['intensity'] = intensity
+
+        end_use = EndUse(statistics=stats)
+        assert end_use.offset == expected_offset
+        assert end_use.intensity == expected_intensity
+
 
     def test_init_consumption(self, end_use):
         """init_consumption creates a zero-filled DataFrame with correct shape."""
@@ -147,6 +156,16 @@ class TestParentEndUseClass:
         res = {end_use.fct_frequency() for __ in range(10)}
         assert res == {1, 2}
 
+    def test_intensity_distribution_sampling(self):
+        """Intensity is sampled from distribution when provided as dict."""
+        intensity_config = {
+            'offset': '0s',
+            'intensity': {'distribution': 'Uniform', 'low': 0.1, 'high': 0.9},
+        }
+        samples = [EndUse(statistics=intensity_config).intensity for __ in range(20)]
+        assert all(0.1 <= s <= 0.9 for s in samples)
+        assert not all(s == samples[0] for s in samples)  # Should vary
+
     @pytest.mark.parametrize("subtype_config, exp_d_range, exp_i_range, exp_t_range, exp_subtypes", [
         pytest.param(
             {
@@ -160,7 +179,7 @@ class TestParentEndUseClass:
                 },
             },
             [0, 6000], [0.1, 0.5], [23], ['test'],
-            id="one-subtype"
+            id="one-subtype-no-top-level-intensity"
         ),
         pytest.param(
             {
@@ -180,7 +199,43 @@ class TestParentEndUseClass:
                 },
             },
             [0, 12000], [0.1, 0.5], [10, 23], ['subtype1', 'subtype2'],
-            id="two-subtypes"
+            id="two-subtypes-no-top-level-intensity"
+        ),
+        pytest.param(
+            {
+                'intensity': 0.5,
+                'subtype': {
+                    'test': {
+                        'penetration': 100,
+                        'temperature': 23,
+                        'duration': {'distribution': 'Lognormal', 'average': '1 Minute'},
+                        'intensity': {'distribution': 'Uniform', 'low': 0.1, 'high': 0.8},
+                    },
+                },
+            },
+            [0, 6000], [0.05, 0.4], [23], ['test'],  # intensity: [low*0.5, high*0.5]
+            id="one-subtype-with-top-level-intensity"
+        ),
+        pytest.param(
+            {
+                'intensity': 1.0,
+                'subtype': {
+                    'subtype1': {
+                        'penetration': 50,
+                        'temperature': 23,
+                        'duration': {'distribution': 'Lognormal', 'average': '1 Minute'},
+                        'intensity': {'distribution': 'Uniform', 'low': 0.2, 'high': 0.6},
+                    },
+                    'subtype2': {
+                        'penetration': 50,
+                        'temperature': 10,
+                        'duration': {'distribution': 'Lognormal', 'average': '2 Minutes'},
+                        'intensity': {'distribution': 'Uniform', 'low': 0.3, 'high': 0.9},
+                    },
+                },
+            },
+            [0, 12000], [0.2, 0.9], [10, 23], ['subtype1', 'subtype2'],  # top-level=1.0 so fractions pass through unchanged
+            id="two-subtypes-with-top-level-intensity-one"
         ),
     ])
     def test_fct_duration_intensity_temperature(self, subtype_config, exp_d_range, exp_i_range, exp_t_range, exp_subtypes):
