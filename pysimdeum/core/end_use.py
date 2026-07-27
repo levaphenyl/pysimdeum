@@ -197,14 +197,24 @@ class Bathtub(EndUse):
         return round(sample_value(dist_name, **dist_params))
 
     def fct_duration(self):
-        """Function to compute the duration of Bathtub end-use.
+        """Compute the duration of Bathtub end-use.
 
-        Comment: The duration is fixed to 10 minutes in this case.
+        If volume is specified in statistics, calculates duration from volume and intensity.
+        Otherwise, uses a fixed duration from statistics.
 
         Returns:
-            duration (fixed value as integer)
-
+            duration (integer in seconds)
         """
+        # Use volume if available.
+        if 'volume' in self.statistics:
+            if isinstance(self.statistics['volume'], dict):
+                dist_name, dist_params = self.get_statistical_params(self.statistics['volume'])
+                volume = sample_value(dist_name, **dist_params)
+            else:
+                volume = self.statistics['volume']
+
+            return int(volume / self.intensity)  # L / L/s = s
+
         # fixed duration
         return int(to_timedelta(self.statistics['duration']).total_seconds())
 
@@ -212,10 +222,8 @@ class Bathtub(EndUse):
         """Compute the intensity of Bathtub end-use.
 
         Returns:
-            intensity (fixed value as float)
-
+            intensity (constant or sampled float value as configured)
         """
-        # fixed intensity
         return self.intensity
 
     def temperature(self):

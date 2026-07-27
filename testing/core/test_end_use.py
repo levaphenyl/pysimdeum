@@ -328,6 +328,41 @@ class TestChildEndUseClasses:
         assert isinstance(intensity, (int, float)) and intensity > 0
         assert isinstance(temperature, (int, float))
 
+    @pytest.mark.parametrize('volume_config, intensity, expected_duration, min_duration, max_duration, should_vary', [
+        pytest.param(60.0, 0.1, 600, None, None, False, id='scalar-volume'),
+        pytest.param(
+            {'distribution': 'Uniform', 'low': 40.0, 'high': 80.0},
+            0.2,
+            None,  # Variable, so no fixed expected value
+            200,  # low / intensity = 40 / 0.2
+            400,  # high / intensity = 80 / 0.2
+            True,
+            id='distribution-volume'
+        ),
+        pytest.param(None, 0.1, 900, None, None, False, id='no-volume-fallback'),
+    ])
+    def test_bathtub_fct_duration(self, volume_config, intensity, expected_duration, min_duration, max_duration, should_vary):
+        """Bathtub.fct_duration() handles volume-based and fixed duration calculations."""
+        stats = {
+            'offset': '0s',
+            'intensity': intensity,
+            'duration': '15 Minutes',  # Fallback for no-volume case
+        }
+        if volume_config is not None:
+            stats['volume'] = volume_config
+
+        end_use = Bathtub(statistics=stats)
+        # For variable durations, sample multiple times
+        if should_vary:
+            durations = [end_use.fct_duration() for _ in range(10)]
+            assert all(isinstance(d, int) and d > 0 for d in durations)
+            assert all(min_duration <= d <= max_duration for d in durations)
+            assert len(set(durations)) > 1  # Should have variation
+        else:
+            duration = end_use.fct_duration()
+            assert duration == expected_duration
+            assert isinstance(duration, int)
+
     @pytest.mark.parametrize('cls, stats_key', [
         pytest.param(BathroomTap, 'BathroomTap', id='BathroomTap'),
         pytest.param(KitchenTap,  'KitchenTap',  id='KitchenTap'),
