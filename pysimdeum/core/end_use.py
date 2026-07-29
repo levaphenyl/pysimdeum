@@ -8,7 +8,14 @@ from pysimdeum.utils.probability import (
     to_timedelta,
     sample_value,
 )
-from pysimdeum.utils.patterns import handle_spillover_consumption, handle_discharge_spillover, sample_start_time, offset_simultaneous_discharge
+from pysimdeum.utils.patterns import (
+    handle_spillover_consumption,
+    handle_discharge_spillover,
+    sample_start_time,
+    offset_simultaneous_discharge,
+    complex_enduse_pattern,
+    complex_discharge_pattern,
+)
 
 
 #TODO: Specific EndUse __post_init__ calls can be replaced by directly using the class name instead of setting the name attributes
@@ -35,6 +42,15 @@ class EndUse:
                 self.intensity = sample_value(distribution_name, **distribution_params)
             else:
                 self.intensity = self.statistics['intensity']
+
+        # Initialize complex patterns if pattern input keys exist in statistics
+        if 'enduse_pattern_input' in self.statistics:
+            self.statistics['enduse_pattern'] = complex_enduse_pattern(self.statistics)
+            if 'discharge_pattern_input' in self.statistics:
+                self.statistics['discharge_pattern'] = complex_discharge_pattern(
+                    self.statistics,
+                    self.statistics['enduse_pattern'],
+                )
 
     def init_consumption(self, users: list, time_resolution: str='1s') -> pd.DataFrame:
         """Initialization of a pandas dataframe to store the  consumptions.

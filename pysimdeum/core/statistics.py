@@ -1,7 +1,7 @@
 import os
 import toml
 from dataclasses import dataclass, field
-from pysimdeum.utils.patterns import complex_daily_pattern, complex_enduse_pattern, complex_discharge_pattern
+from pysimdeum.utils.patterns import complex_daily_pattern
 from pysimdeum.data import DATA_DIR
 
 
@@ -55,8 +55,6 @@ class Statistics:
                 self.end_uses[end_use_name]['daily_pattern'] = complex_daily_pattern(self.end_uses[end_use_name], freq='15Min')
             elif end_use_name in ['WashingMachine', 'Dishwasher']:
                 self.end_uses[end_use_name]['daily_pattern'] = complex_daily_pattern(self.end_uses[end_use_name])
-                self.end_uses[end_use_name]['enduse_pattern'] = complex_enduse_pattern(self.end_uses[end_use_name])
-                self.end_uses[end_use_name]['discharge_pattern'] = complex_discharge_pattern(self.end_uses[end_use_name], self.end_uses[end_use_name]['enduse_pattern'])
 
     def _convert_to_dict(self, data):
         """Convert dict subclasses to native Python `dict` for `pickle` to work.

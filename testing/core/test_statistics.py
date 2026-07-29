@@ -18,8 +18,7 @@ EXPECTED_END_USE_KEYS = [
     'Wc', 'Bathtub', 'BathroomTap', 'Dishwasher',
     'KitchenTap', 'OutsideTap', 'Shower', 'WashingMachine',
 ]
-EXPECTED_FULL_PATTERN_END_USES = ['WashingMachine', 'Dishwasher']
-PATTERN_KEYS_FULL = ['daily_pattern', 'enduse_pattern', 'discharge_pattern']
+EXPECTED_PATTERN_END_USES = ['KitchenTap', 'WashingMachine', 'Dishwasher']
 
 
 # Module-scoped fixture — built once, shared across all tests
@@ -92,17 +91,11 @@ class TestStatisticsEndUses:
 class TestStatisticsPatterns:
     """Tests correct pattern initialization."""
 
-    @pytest.mark.parametrize('enduse', EXPECTED_FULL_PATTERN_END_USES)
-    @pytest.mark.parametrize('pattern', PATTERN_KEYS_FULL)
-    def test_washing_machine_has_daily_pattern(self, nl_stats, enduse, pattern):
-        """Example: check that WashingMachine has daily_pattern."""
-        assert pattern in nl_stats.end_uses[enduse]
-        assert nl_stats.end_uses[enduse][pattern] is not None
-
-    def test_kitchen_tap_has_daily_pattern(self, nl_stats):
-        """KitchenTap has daily_pattern."""
-        assert 'daily_pattern' in nl_stats.end_uses['KitchenTap']
-        assert nl_stats.end_uses['KitchenTap']['daily_pattern'] is not None
+    @pytest.mark.parametrize('enduse', EXPECTED_PATTERN_END_USES)
+    def test_complex_daily_patterns_assigned(self, nl_stats, enduse):
+        """Statistics set daily_pattern eagerly."""
+        assert 'daily_pattern' in nl_stats.end_uses[enduse]
+        assert nl_stats.end_uses[enduse]['daily_pattern'] is not None
 
 
 class TestStatisticsConvertToDict:
