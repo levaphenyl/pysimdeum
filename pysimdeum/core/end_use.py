@@ -45,7 +45,11 @@ class EndUse:
 
         # Initialize complex patterns if pattern input keys exist in statistics
         if 'enduse_pattern_input' in self.statistics:
-            self.statistics['enduse_pattern'] = complex_enduse_pattern(self.statistics)
+            if 'cycle_volumes' in self.statistics['enduse_pattern_input']:
+                self.statistics['enduse_pattern'] = complex_enduse_pattern(self.statistics, intensity=self.intensity)
+            else:
+                self.statistics['enduse_pattern'] = complex_enduse_pattern(self.statistics)
+
             if 'discharge_pattern_input' in self.statistics:
                 self.statistics['discharge_pattern'] = complex_discharge_pattern(
                     self.statistics,

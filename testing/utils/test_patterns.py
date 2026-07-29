@@ -53,6 +53,17 @@ ENDUSE_CONFIG = {
         'discharge_time': 60,
     },
 }
+ENDUSE_VOLUME_CONFIG = {
+    'enduse_pattern_input': {
+        'runtime': 7200,
+        'cycle_volumes': [
+            {'start': 0,    'vol': 20.2},
+            {'start': 3600, 'vol': 16.7},
+            {'start': 4920, 'vol': 10.0},
+            {'start': 6120, 'vol': 1.0},
+        ],
+    },
+}
 
 
 @pytest.fixture
@@ -191,6 +202,20 @@ class TestComplexEndusePattern:
             (6200, 0.0),     # after cycle 4 end (6180)
         ]
         assert all(enduse_pat.iloc[i] == pytest.approx(x, abs=1e-4) for i, x in idx_expected)
+
+    def test_volume_based_mode(self):
+        """Volume-based pattern generates correct durations from volume / intensity."""
+        intensity = 0.1667  # L/s
+        enduse_pat = complex_enduse_pattern(ENDUSE_VOLUME_CONFIG, intensity=intensity)
+        runtime = ENDUSE_VOLUME_CONFIG['enduse_pattern_input']['runtime']
+        assert len(enduse_pat) == runtime
+        assert (enduse_pat >= 0).all()
+        # Check that only 0 and intensity appear
+        unique = set(np.round(enduse_pat.unique(), 4))
+        assert unique == {0.0, round(intensity, 4)}
+        total_consumed = enduse_pat.sum()
+        expected_volume = sum(cycle['vol'] for cycle in ENDUSE_VOLUME_CONFIG['enduse_pattern_input']['cycle_volumes'])
+        assert total_consumed == pytest.approx(expected_volume, rel=0.01)
 
 
 @pytest.fixture(scope='module')

@@ -180,31 +180,40 @@ def complex_daily_pattern(config, resolution='1s', freq='1h'):
     return s
 
 
-def complex_enduse_pattern(config, resolution='1s'):
+def complex_enduse_pattern(config: dict, resolution: str ='1s', intensity: float | None = None) -> pd.Series:
     """Generates the end-use pattern for an appliance with consumption cycles based on the provided configuration.
 
-    This function reads the intensity, runtime, and cycle times from the provided configuration,
-    creates a time series for the specified resolution, and assigns the intensity to the specified
-    cycle times.
+    Supports two modes:
+        - Time-based (``intensity=None``): reads intensity and cycle times from ``config['enduse_pattern_input']``.
+        - Volume-based (``intensity`` provided): computes cycle end times from ``config['enduse_pattern_input']['cycle_volumes']`` and the given intensity.
 
     Args:
-        resolution (str, optional): The time resolution for the time series. Defaults to '1s'.
+        config (dict):                  Configuration dictionary containing ``enduse_pattern_input`` with keys
+                                        ``runtime``, ``intensity`` / ``cycle_times`` (time-based) or ``cycle_volumes`` (volume-based).
+        resolution (str, optional):     Time resolution for the output series. Defaults to ``'1s'``.
+        intensity (float, optional):    Flow rate in L/s. If provided, switches to volume-based mode.
 
     Returns:
-        pd.Series: A pandas Series representing the end-use pattern for the appliance,
-        with the specified intensity assigned to the specified cycle times.
+        pd.Series: End-use pattern with a TimedeltaIndex at the given resolution.
     """
-    intensity = config['enduse_pattern_input']['intensity']
     runtime = config['enduse_pattern_input']['runtime']
-    cycle_times = config['enduse_pattern_input']['cycle_times']
-
-    index = pd.timedelta_range(start='00:00:00', freq=resolution, periods=runtime)
-    s = pd.Series(0.0, index=index)
-
-    for cycle in cycle_times:
-        start = cycle['start']
-        end = cycle['end']
-        s.iloc[start:end] = intensity
+    s = pd.Series(
+        data=0.,
+        index=pd.timedelta_range(start='00:00:00', freq=resolution, periods=runtime),
+    )
+    # Time-based pattern.
+    if intensity is None:
+        intensity = config['enduse_pattern_input']['intensity']
+        for cycle in config['enduse_pattern_input']['cycle_times']:
+            start = cycle['start']
+            end = cycle['end']
+            s.iloc[start:end] = intensity
+    # Volume-based pattern.
+    else:
+        for cycle in config['enduse_pattern_input']['cycle_volumes']:
+            start = cycle['start']
+            end = start + round(cycle['vol'] / intensity)  # End time is variable based on volume and intensity.
+            s.iloc[start:end] = intensity
 
     return s
 
